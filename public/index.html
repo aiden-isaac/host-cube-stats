@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTG Cube Leaderboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="header-row">
+                <div>
+                    <h1>🎲 MTG Cube Leaderboard</h1>
+                    <p class="subtitle">Track card maindeck rates and player performance</p>
+                </div>
+                <div id="accountArea" class="account-area">
+                    <button id="loginBtn" class="btn btn-secondary">🔐 Login</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Welcome Screen (shown when no cube loaded) -->
+        <section id="welcome" class="welcome-screen">
+            <div class="card welcome-card">
+                <h2>👋 Welcome to Cube Leaderboard</h2>
+                <p class="help-text">Get started by importing your cube list</p>
+                <div class="welcome-actions">
+                    <div class="form-group">
+                        <textarea id="welcomeCubeList" placeholder="Paste your cube list here (one card per line)..."
+                            rows="10"></textarea>
+                    </div>
+                    <button id="welcomeImportCube" class="btn btn-primary btn-large">📋 Import Cube List</button>
+                    <p class="help-text">Or import existing data:</p>
+                    <div class="import-row">
+                        <input type="file" id="welcomeImportFile" accept=".json">
+                        <button id="welcomeImportData" class="btn btn-secondary">📥 Import JSON</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main App (shown after cube loaded) -->
+        <div id="mainApp" class="hidden">
+            <!-- Navigation Tabs -->
+            <nav class="tabs">
+                <button class="tab-btn active" data-tab="entry">➕ Add Game</button>
+                <button class="tab-btn" data-tab="leaderboard">🃏 Cards</button>
+                <button class="tab-btn" data-tab="players">👥 Players</button>
+                <button class="tab-btn" data-tab="settings">⚙️ Settings</button>
+            </nav>
+
+            <!-- Game Entry Tab -->
+            <section id="entry" class="tab-content active">
+                <div class="card">
+                    <h2>Add Game Entry</h2>
+                    <form id="gameForm">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="gameDate">Date</label>
+                                <input type="date" id="gameDate" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="playerName">Player</label>
+                                <input type="text" id="playerName" placeholder="Player name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="deckTitle">Deck Name</label>
+                                <input type="text" id="deckTitle" placeholder="e.g. UW Control, Mono Red">
+                            </div>
+                            <div class="form-group">
+                                <label>Win-Loss Record</label>
+                                <div class="win-loss-inputs">
+                                    <input type="number" id="winsInput" placeholder="Wins" min="0" value="0" required>
+                                    <span class="win-loss-separator">-</span>
+                                    <input type="number" id="lossesInput" placeholder="Losses" min="0" value="0"
+                                        required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="decklist">Decklist</label>
+                            <textarea id="decklist" placeholder="Enter cards in deck (one per line)..." rows="10"
+                                required></textarea>
+                        </div>
+
+                        <div class="button-group">
+                            <button type="submit" class="btn btn-primary">✅ Add Game</button>
+                            <button type="reset" class="btn btn-secondary">🔄 Clear Form</button>
+                        </div>
+                    </form>
+
+                    <div id="recentGames" class="recent-games"></div>
+                </div>
+            </section>
+
+            <!-- Card Leaderboard Tab -->
+            <section id="leaderboard" class="tab-content">
+                <div class="card">
+                    <h2>Card Maindeck Rates</h2>
+
+                    <!-- Filter Bar -->
+                    <div class="leaderboard-filters">
+                        <div class="filter-row">
+                            <div class="form-group">
+                                <label for="cardSearch">Search Card</label>
+                                <input type="text" id="cardSearch" placeholder="Search by name...">
+                            </div>
+                            <div class="form-group">
+                                <label for="dateFrom">From Date</label>
+                                <input type="date" id="dateFrom">
+                            </div>
+                            <div class="form-group">
+                                <label for="dateTo">To Date</label>
+                                <input type="date" id="dateTo">
+                            </div>
+                        </div>
+
+                        <div class="filter-toggles">
+                            <div class="toggle-group">
+                                <span class="toggle-label">View:</span>
+                                <button class="toggle-btn active" data-view="bottom20">Bottom 20</button>
+                                <button class="toggle-btn" data-view="top20">Top 20</button>
+                                <button class="toggle-btn" data-view="all">All</button>
+                            </div>
+                            <div class="toggle-group">
+                                <span class="toggle-label">Display:</span>
+                                <button class="toggle-btn" data-display="list">📋 List</button>
+                                <button class="toggle-btn active" data-display="grid">🖼️ Grid</button>
+                            </div>
+                            <div class="toggle-group" id="sortOrderGroup">
+                                <button class="toggle-btn" id="sortOrderBtn" data-order="asc">↑ Ascending</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="leaderboardStats" class="stats-card"></div>
+                    <div id="leaderboardOutput" class="leaderboard-output"></div>
+                </div>
+            </section>
+
+            <!-- Players Tab -->
+            <section id="players" class="tab-content">
+                <div class="card">
+                    <h2>Player Leaderboard</h2>
+                    <div id="playerStats" class="stats-card"></div>
+                    <div id="playerLeaderboard" class="player-leaderboard"></div>
+                </div>
+            </section>
+
+            <!-- Settings Tab -->
+            <section id="settings" class="tab-content">
+                <div class="card">
+                    <h2>Settings</h2>
+
+                    <div class="data-section">
+                        <h3>📋 Cube List</h3>
+                        <p class="help-text">Manage your cube card list</p>
+                        <textarea id="cubeList" placeholder="One card per line..." rows="8"></textarea>
+                        <div class="button-group">
+                            <button id="saveCubeList" class="btn btn-primary">💾 Save Cube List</button>
+                            <button id="clearCubeList" class="btn btn-secondary">🗑️ Clear</button>
+                        </div>
+                        <div id="cubeStats" class="stats-card"></div>
+                    </div>
+
+                    <div class="data-section">
+                        <h3>📥 Import / Export</h3>
+                        <div class="button-group">
+                            <button id="exportData" class="btn btn-primary">📤 Export JSON</button>
+                        </div>
+                        <div class="import-row">
+                            <input type="file" id="importFile" accept=".json">
+                            <button id="importData" class="btn btn-secondary">📥 Import JSON</button>
+                        </div>
+                    </div>
+
+                    <div class="data-section danger-zone">
+                        <h3>⚠️ Danger Zone</h3>
+                        <button id="resetData" class="btn btn-danger">🗑️ Reset All Data</button>
+                        <p class="help-text">This will delete all games and cube list data.</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Card Image Picker Modal -->
+    <div id="cardPickerModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🔍 Select Card Art</h3>
+                <button class="modal-close" onclick="cubeApp.closeCardPicker()">&times;</button>
+            </div>
+            <p class="modal-subtitle">Selecting art for: <strong id="pickerCardName"></strong></p>
+            <div class="modal-search">
+                <input type="text" id="cardPickerSearch" placeholder="Search for a card..."
+                    onkeyup="cubeApp.searchCardPrints()">
+                <button class="btn btn-primary" onclick="cubeApp.searchCardPrints()">Search</button>
+            </div>
+            <div id="cardPickerResults" class="card-picker-grid"></div>
+        </div>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="modal-overlay hidden">
+        <div class="modal-content auth-modal">
+            <div class="modal-header">
+                <h3 id="authModalTitle">🔐 Login</h3>
+                <button class="modal-close" onclick="cubeApp.closeAuthModal()">&times;</button>
+            </div>
+            <form id="authForm" onsubmit="cubeApp.handleAuthSubmit(event)">
+                <div class="form-group">
+                    <label for="authUsername">Username</label>
+                    <input type="text" id="authUsername" placeholder="Enter username" minlength="3" required>
+                </div>
+                <div class="form-group">
+                    <label for="authPassword">Password</label>
+                    <input type="password" id="authPassword" placeholder="Enter password" minlength="6" required>
+                </div>
+                <div id="authError" class="auth-error hidden"></div>
+                <div class="button-group">
+                    <button type="submit" id="authSubmitBtn" class="btn btn-primary">Login</button>
+                </div>
+            </form>
+            <p class="auth-switch">
+                <span id="authSwitchText">Don't have an account?</span>
+                <a href="#" onclick="cubeApp.toggleAuthMode(event)">Register</a>
+            </p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

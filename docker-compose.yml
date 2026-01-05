@@ -1,0 +1,15 @@
+services:
+  cube-stats:
+    build: .
+    container_name: cube-stats
+    restart: unless-stopped
+    ports:
+      - "8888:8080"
+    volumes:
+      # Persist SQLite database
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      # Change this to a secure random string in production!
+      - JWT_SECRET=WvxR8oViJAjT
