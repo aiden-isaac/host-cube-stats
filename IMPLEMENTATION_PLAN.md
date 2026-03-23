@@ -16,11 +16,24 @@ A from-scratch rebuild of the MTG Cube Stats website, transforming it from a per
 > **Technology choices** — please confirm:
 > 1. **Frontend framework**: I'm proposing **Vite + React** for the SPA. This gives us component-based UI, routing, and hot reload. If you prefer to stay vanilla HTML/JS or want Vue/Svelte, let me know.
 > 2. **Database**: I'm proposing **SQLite via better-sqlite3** (synchronous, file-based, no extra server) — ideal for a Pi. PostgreSQL is an option if you want more power later.
+> 3. **Card art source**: mtgpics.com has **no API** and has been unreliable (slow loads, broken redirects). I'll use **Scryfall's `art_crop`** image format instead — it gives a rectangular crop of just the card artwork (varies in size, JPG). These will be pre-cached on first cube version creation for fast backgrounds.
 > 3. **Real-time**: **Socket.IO** for live tournament updates, draft timers, and life tracking.
 > 4. **Deployment**: Keep Docker + Cloudflare Tunnel to `cube.frizzt.com`.
 
 > [!CAUTION]
 > **Breaking change**: The v1 JSON blob data model will be completely replaced with a normalized relational schema. A migration script will be provided to import existing data from `data/cube-stats.db`.
+
+---
+
+## Copyright Compliance
+
+Per the [Wizards of the Coast Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy) (updated Dec 2025), this project qualifies as **non-commercial fan content**. Requirements:
+
+1. **Required disclaimer** on every page footer:
+   > *"Cube Stats is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC."*
+2. **No WotC logos or mana symbols** used as assets (card images fetched via Scryfall are fine)
+3. **No paywalls** — the site must be free to access
+4. **Credit artists** when displaying `art_crop` backgrounds (artist name from Scryfall API)
 
 ---
 
@@ -70,6 +83,7 @@ CREATE TABLE users (
     display_name TEXT,
     avatar_url TEXT,
     role TEXT NOT NULL DEFAULT 'player',  -- 'host' or 'player'
+    remember_token TEXT,                  -- for "Remember Me" persistent sessions
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -88,8 +102,21 @@ CREATE TABLE cube_cards (
     version_id INTEGER REFERENCES cube_versions(id) ON DELETE CASCADE,
     card_name TEXT NOT NULL,
     scryfall_id TEXT,
-    image_url TEXT,
+    image_url TEXT,               -- normal card image
+    art_crop_url TEXT,            -- art-only crop for backgrounds
+    artist TEXT,                  -- for copyright attribution
     UNIQUE(version_id, card_name)
+);
+
+-- Pre-cached artwork for login backgrounds
+CREATE TABLE cached_artworks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    card_name TEXT NOT NULL,
+    art_crop_url TEXT NOT NULL,   -- Scryfall art_crop URL
+    local_path TEXT,              -- local cached file path
+    artist TEXT NOT NULL,         -- for attribution
+    dominant_color TEXT,          -- hex color extracted for UI theming
+    UNIQUE(card_name)
 );
 
 CREATE TABLE image_overrides (
@@ -238,7 +265,18 @@ Swiss pairing algorithm: pair players with similar records, avoid rematches, han
 Calculate Match Points, OMW%, GW%, OGW% per official WotC tiebreaker rules.
 
 #### [NEW] [src/services/scryfall.js](file:///home/aiden/Projects/host-cube-stats/src/services/scryfall.js)
-Server-side Scryfall proxy with rate limiting (100ms between requests), caching, DFC normalization.
+Server-side Scryfall proxy with rate limiting (100ms between requests), caching, DFC normalization. Also handles:
+- Fetching `art_crop` URLs + artist names for background artwork cache
+- Dominant color extraction from art crops (using `sharp` or canvas-based sampling)
+
+#### [NEW] [src/services/decklist-image.js](file:///home/aiden/Projects/host-cube-stats/src/services/decklist-image.js)
+Moxfield-style decklist image generator using **`node-canvas`** (or `sharp` compositing):
+- Renders a visual decklist as a single image (PNG)
+- Layout: deck title header, cards sorted by type (Creatures, Instants, Sorceries, etc.) in visual stacks
+- Each card shown as a small card image, quantity badge, sorted by CMC within type
+- Footer with player name, tournament name, date, record
+- Output: downloadable PNG, shareable on social media
+- API: `GET /api/decklists/:id/image` returns PNG
 
 #### [NEW] [src/socket/tournament.js](file:///home/aiden/Projects/host-cube-stats/src/socket/tournament.js)
 Socket.IO namespace for tournament events:
@@ -275,12 +313,15 @@ Vite + React app (created via `npx create-vite`).
 | `Toast` | Global toast notification system |
 
 #### Design System:
-- Dark theme (refined from v1's `#0f172a` → `#1e293b` gradient)
+- **Dynamic card art backgrounds**: On the login page, a random card artwork from the cube is displayed full-bleed as the background (fetched from the `cached_artworks` table). On login, it blurs and the UI color scheme adapts to the artwork's dominant color (extracted server-side on cache). The background subtly transitions to a new random art every ~30 seconds.
+- Dark theme (refined from v1's `#0f172a` → `#1e293b` gradient) with **adaptive accent colors** derived from the background artwork
 - Inter font from Google Fonts
-- Glassmorphic card components
+- Glassmorphic card components with backdrop blur over the art background
 - Smooth micro-animations and transitions
 - Mobile-first responsive design
-- MTG-themed accent colors (gold/amber primary, deep purple secondary)
+- MTG-themed accent colors (gold/amber primary, deep purple secondary) as defaults when no art is loaded
+- **WotC copyright disclaimer** in the footer of every page
+- **Artist credit overlay** on background artwork (small, bottom-corner)
 
 ---
 
@@ -402,7 +443,7 @@ Each phase ends with a checkpoint where you can review before proceeding.
 
 These are explicitly **out of scope** for v2.0 but documented for later:
 - Camera-based card scanning for decklists
-- Basic land suggestions + decklist image generation (tournament-style)
+- Basic land suggestions based on mana curve analysis
 - Permission system for other users to edit the cube list
 - Elo rating system for cards and players
 - CubeCobra import by cube ID
@@ -410,3 +451,4 @@ These are explicitly **out of scope** for v2.0 but documented for later:
 - Real-time draft pick tracking (see what others pick)
 - Offline-first with service workers
 - Push notifications for tournament events
+- Advanced decklist image templates (different layouts, custom backgrounds)
