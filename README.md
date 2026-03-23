@@ -1,50 +1,82 @@
-# Cube Stats - MTG Cube Leaderboard
+# Cube Stats v2 — MTG Cube Tournament Platform
 
-A card performance tracking app with user authentication.
+A self-hosted MTG Cube tournament management platform. One master cube list, full tournament lifecycle, live life tracking, Swiss pairings, and exportable leaderboards — all running on a Raspberry Pi.
 
-## Quick Start (Development)
+## Vision
+
+**Cube Stats v2** is a complete rewrite of the original cube leaderboard tracker. Instead of per-user isolated data, the entire site revolves around **one shared cube list** managed by the host. Players join tournaments, draft, submit decklists, play Swiss rounds with real-time life tracking, and view global leaderboards.
+
+## Core Features
+
+### 🔐 Authentication
+- Login/register with "Remember Me" (30-day JWT)
+- Role-based access: **Host** (full control) and **Player** (view + play)
+
+### 🃏 Cube List
+- Visual card gallery powered by Scryfall
+- **Versioned** — each update is named and dated (e.g. *"Lorwyn Eclipsed" Feb 2026 – Apr 2026*)
+- Host-only editing; all users can browse any version
+
+### 🏆 Tournaments
+- Host creates tournaments with configurable settings (format, timers, player count)
+- **Join codes** — players enter a 6-character code to join the lobby
+- Host arranges seating, starts draft, manages rounds
+- **Draft timer** with real-time countdown (Socket.IO)
+- **Swiss pairings** auto-generated each round
+- **Life tracker** synced per-player (independent from result submission)
+- **Match result submission** by any participant
+- **WotC tiebreakers**: Match Points, OMW%, GW%, OGW%
+- **Exportable standings** as a shareable 16:9 image
+
+### 📋 Decklists
+- Players submit decklists after drafting (with ready status)
+- All players can view each other's decklists
+- Host can edit decklists for post-tournament corrections
+
+### 📊 Leaderboard
+- Global player stats aggregated across all tournaments
+- Per-player profile with win rate, match history, deck exports
+
+### ⚙️ Settings
+- Profile picture, display name, password management
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Vite + React |
+| Backend | Node.js + Express |
+| Database | SQLite (better-sqlite3) |
+| Real-time | Socket.IO |
+| Auth | JWT + bcrypt |
+| Card Data | Scryfall API |
+| Deploy | Docker + Cloudflare Tunnel |
+
+## Quick Start
 
 ```bash
 # Install dependencies
 npm install
 
-# Start server
-npm start
+# Start development server
+npm run dev
 ```
 
-Open http://localhost:8080
-
-## Deployment (Docker)
+## Deployment
 
 ```bash
-# Build and run
 docker compose up -d
-
-# View logs
-docker compose logs -f
 ```
 
-## Environment Variables
+Live at `cube.frizzt.com` via Cloudflare Tunnel → `localhost:8888`.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | 8080 | Server port |
-| `JWT_SECRET` | (default) | Secret key for JWT tokens - **change in production!** |
-| `DB_PATH` | ./data/cube-stats.db | SQLite database path |
+## Project Status
 
-## Features
+🚧 **v2 is in planning/development.** See [implementation_plan.md](implementation_plan.md) for the full technical plan.
 
-- 🎲 Track card performance with CUS scoring
-- 🔐 User accounts with encrypted passwords (bcrypt)
-- 🔄 Data sync across devices
-- 🖼️ Scryfall card images with custom art picker
-- 📊 Filterable leaderboard
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/register` | Create account |
-| POST | `/api/login` | Login |
-| GET | `/api/data` | Get user data (auth required) |
-| POST | `/api/data` | Save user data (auth required) |
+## Future Roadmap
+- Camera-based card scanning for decklists
+- Decklist image generation (tournament-style)
+- Multi-host permission system
+- Elo rating system for cards and players
+- CubeCobra import integration
