@@ -185,10 +185,13 @@ export default function GameList() {
               <div className="form-group">
                 <label>Max Players</label>
                 <select value={tPlayers} onChange={e => setTPlayers(parseInt(e.target.value))}>
+                  <option value={2}>2 Players</option>
+                  <option value={3}>3 Players</option>
                   <option value={4}>4 Players</option>
+                  <option value={5}>5 Players</option>
                   <option value={6}>6 Players</option>
+                  <option value={7}>7 Players</option>
                   <option value={8}>8 Players</option>
-                  <option value={10}>10 Players</option>
                 </select>
               </div>
 
