@@ -40,6 +40,14 @@ export default function Lifetracker() {
     }, 100);
   };
 
+  const getAvatar = (url, name) => {
+    if (url) return url;
+    const initial = name ? name.charAt(0).toUpperCase() : '?';
+    // Make it a clean data URI for backgrounds
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 40 40"><rect width="40" height="40" fill="#1e293b" /><text x="50%" y="50%" fill="white" font-size="20" font-family="sans-serif" text-anchor="middle" dominant-baseline="central">${initial}</text></svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  };
+
   const PlayerSection = ({ life, playerNum, isUpsideDown }) => {
     let bgImage = 'none';
     let bgColor = playerNum === 1 ? 'var(--surface-color)' : 'rgba(15,23,42,1)';
@@ -48,10 +56,12 @@ export default function Lifetracker() {
       const isMePlayer1 = activeMatch.player1_id === user.id;
       if (playerNum === 1) { // Bottom (Me)
         const myAvatar = isMePlayer1 ? activeMatch.player1_avatar : activeMatch.player2_avatar;
-        if (myAvatar) bgImage = `url(${myAvatar})`;
+        const myName = isMePlayer1 ? activeMatch.player1_display : activeMatch.player2_display;
+        bgImage = `url("${getAvatar(myAvatar, myName)}")`;
       } else { // Top (Opponent)
         const oppAvatar = isMePlayer1 ? activeMatch.player2_avatar : activeMatch.player1_avatar;
-        if (oppAvatar) bgImage = `url(${oppAvatar})`;
+        const oppName = isMePlayer1 ? activeMatch.player2_display : activeMatch.player1_display;
+        bgImage = `url("${getAvatar(oppAvatar, oppName)}")`;
       }
     }
 
@@ -75,7 +85,9 @@ export default function Lifetracker() {
         {/* Dark overlay so life total is readable over avatar */}
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: bgImage !== 'none' ? 'rgba(0,0,0,0.5)' : 'transparent',
+          backgroundColor: bgImage !== 'none' ? 'rgba(0,0,0,0.4)' : 'transparent',
+          backdropFilter: bgImage !== 'none' ? 'blur(10px)' : 'none',
+          WebkitBackdropFilter: bgImage !== 'none' ? 'blur(10px)' : 'none',
           pointerEvents: 'none',
           zIndex: 1
         }} />
@@ -100,9 +112,10 @@ export default function Lifetracker() {
 
         {/* Center Number */}
         <div style={{
-          fontSize: '12rem',
+          fontSize: 'clamp(8rem, 30vw, 16rem)',
           fontWeight: 800,
-          color: 'var(--text-primary)',
+          color: 'white',
+          WebkitTextStroke: '3px rgba(0,0,0,0.8)',
           textShadow: '0 0 30px rgba(0,0,0,0.8)',
           zIndex: 5,
           pointerEvents: 'none',
