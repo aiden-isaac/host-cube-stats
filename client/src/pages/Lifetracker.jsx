@@ -1,8 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function Lifetracker() {
   const [player1Life, setPlayer1Life] = useState(20);
   const [player2Life, setPlayer2Life] = useState(20);
+  
+  const [activeMatch, setActiveMatch] = useState(null);
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  useEffect(() => {
+    const fetchActiveMatch = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const res = await fetch('/api/matches/active', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.match) {
+          setActiveMatch(data.match);
+        }
+      } catch (err) {
+        console.error('Failed to fetch active match:', err);
+      }
+    };
+    fetchActiveMatch();
+  }, []);
 
   // Helper utility to flash backgrounds slightly on tap
   const handleTap = (player, change, e) => {
@@ -18,56 +40,83 @@ export default function Lifetracker() {
     }, 100);
   };
 
-  const PlayerSection = ({ life, playerNum, isUpsideDown }) => (
-    <div style={{
-      flex: 1,
-      position: 'relative',
-      transform: isUpsideDown ? 'rotate(180deg)' : 'none',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: playerNum === 1 ? 'var(--surface-color)' : 'rgba(15,23,42,1)',
-      borderBottom: isUpsideDown ? 'none' : '2px solid var(--primary)',
-      borderTop: isUpsideDown ? '2px solid var(--primary)' : 'none',
-      userSelect: 'none',
-      overflow: 'hidden'
-    }}>
-      {/* Invisible Left Half (-) */}
-      <div 
-        onClick={(e) => handleTap(playerNum, -1, e)}
-        style={{
-          position: 'absolute', top: 0, left: 0, bottom: 0, width: '50%',
-          cursor: 'pointer', zIndex: 10, transition: 'background-color 0.1s'
-        }}
-      />
-      
-      {/* Invisible Right Half (+) */}
-      <div 
-        onClick={(e) => handleTap(playerNum, 1, e)}
-        style={{
-          position: 'absolute', top: 0, right: 0, bottom: 0, width: '50%',
-          cursor: 'pointer', zIndex: 10, transition: 'background-color 0.1s'
-        }}
-      />
+  const PlayerSection = ({ life, playerNum, isUpsideDown }) => {
+    let bgImage = 'none';
+    let bgColor = playerNum === 1 ? 'var(--surface-color)' : 'rgba(15,23,42,1)';
+    
+    if (activeMatch) {
+      const isMePlayer1 = activeMatch.player1_id === user.id;
+      if (playerNum === 1) { // Bottom (Me)
+        const myAvatar = isMePlayer1 ? activeMatch.player1_avatar : activeMatch.player2_avatar;
+        if (myAvatar) bgImage = `url(${myAvatar})`;
+      } else { // Top (Opponent)
+        const oppAvatar = isMePlayer1 ? activeMatch.player2_avatar : activeMatch.player1_avatar;
+        if (oppAvatar) bgImage = `url(${oppAvatar})`;
+      }
+    }
 
-      {/* Center Number */}
+    return (
       <div style={{
-        fontSize: '12rem',
-        fontWeight: 800,
-        color: 'var(--text-primary)',
-        textShadow: '0 0 30px rgba(0,0,0,0.5)',
-        zIndex: 5,
-        pointerEvents: 'none',
-        fontVariantNumeric: 'tabular-nums'
+        flex: 1,
+        position: 'relative',
+        transform: isUpsideDown ? 'rotate(180deg)' : 'none',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: bgColor,
+        backgroundImage: bgImage,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        borderBottom: isUpsideDown ? 'none' : '2px solid var(--primary)',
+        borderTop: isUpsideDown ? '2px solid var(--primary)' : 'none',
+        userSelect: 'none',
+        overflow: 'hidden'
       }}>
-        {life}
-      </div>
+        {/* Dark overlay so life total is readable over avatar */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: bgImage !== 'none' ? 'rgba(0,0,0,0.5)' : 'transparent',
+          pointerEvents: 'none',
+          zIndex: 1
+        }} />
 
-      {/* Visual Indicator icons (+ / -) faintly visible in the background */}
-      <div style={{ position: 'absolute', left: '10%', fontSize: '4rem', opacity: 0.05, pointerEvents: 'none' }}>-</div>
-      <div style={{ position: 'absolute', right: '10%', fontSize: '4rem', opacity: 0.05, pointerEvents: 'none' }}>+</div>
-    </div>
-  );
+        {/* Invisible Left Half (-) */}
+        <div 
+          onClick={(e) => handleTap(playerNum, -1, e)}
+          style={{
+            position: 'absolute', top: 0, left: 0, bottom: 0, width: '50%',
+            cursor: 'pointer', zIndex: 10, transition: 'background-color 0.1s'
+          }}
+        />
+        
+        {/* Invisible Right Half (+) */}
+        <div 
+          onClick={(e) => handleTap(playerNum, 1, e)}
+          style={{
+            position: 'absolute', top: 0, right: 0, bottom: 0, width: '50%',
+            cursor: 'pointer', zIndex: 10, transition: 'background-color 0.1s'
+          }}
+        />
+
+        {/* Center Number */}
+        <div style={{
+          fontSize: '12rem',
+          fontWeight: 800,
+          color: 'var(--text-primary)',
+          textShadow: '0 0 30px rgba(0,0,0,0.8)',
+          zIndex: 5,
+          pointerEvents: 'none',
+          fontVariantNumeric: 'tabular-nums'
+        }}>
+          {life}
+        </div>
+
+        {/* Visual Indicator icons (+ / -) faintly visible in the background */}
+        <div style={{ position: 'absolute', left: '10%', fontSize: '4rem', opacity: 0.1, zIndex: 2, pointerEvents: 'none', textShadow: '0 0 10px rgba(0,0,0,0.8)' }}>-</div>
+        <div style={{ position: 'absolute', right: '10%', fontSize: '4rem', opacity: 0.1, zIndex: 2, pointerEvents: 'none', textShadow: '0 0 10px rgba(0,0,0,0.8)' }}>+</div>
+      </div>
+    );
+  };
 
   return (
     <div style={{

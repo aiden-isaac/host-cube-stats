@@ -132,6 +132,35 @@ router.post('/tournaments/:id/pairings', requireAuth, requireHost, (req, res) =>
     }
 });
 
+// GET /api/matches/active — get active match for current user
+router.get('/active', requireAuth, (req, res) => {
+    try {
+        const db = getDb();
+        const activeMatch = db.prepare(`
+            SELECT m.*, 
+                   u1.username as player1_name, u1.display_name as player1_display, u1.avatar_url as player1_avatar,
+                   u2.username as player2_name, u2.display_name as player2_display, u2.avatar_url as player2_avatar
+            FROM matches m
+            JOIN tournaments t ON m.tournament_id = t.id
+            LEFT JOIN users u1 ON m.player1_id = u1.id
+            LEFT JOIN users u2 ON m.player2_id = u2.id
+            WHERE t.status = 'active'
+              AND m.status != 'complete'
+              AND m.round_number = t.current_round
+              AND (m.player1_id = ? OR m.player2_id = ?)
+            LIMIT 1
+        `).get(req.user.userId, req.user.userId);
+
+        if (!activeMatch) {
+            return res.json({ match: null });
+        }
+        res.json({ match: activeMatch });
+    } catch (error) {
+        console.error('Get active match error:', error);
+        res.status(500).json({ error: 'Failed to get active match' });
+    }
+});
+
 // GET /api/tournaments/:id/matches — get all matches for a tournament
 router.get('/tournaments/:id/matches', requireAuth, (req, res) => {
     try {
