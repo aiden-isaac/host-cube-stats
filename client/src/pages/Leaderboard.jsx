@@ -250,6 +250,13 @@ export default function Leaderboard() {
             </div>
           </div>
 
+          {myStats.mostUsedCard && (
+            <div className="w-full text-center mt-6 p-4" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-sm)' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>MOST DRAFTED CARD</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--primary)' }}>{myStats.mostUsedCard}</div>
+            </div>
+          )}
+
           <div className="w-full text-center mt-6" style={{ fontSize: '0.7rem', opacity: 0.4 }}>
             Powered by Cube Stats v2
           </div>

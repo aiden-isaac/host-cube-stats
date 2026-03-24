@@ -303,15 +303,30 @@ router.get('/leaderboard', requireAuth, (req, res) => {
         `).all();
 
         // Calculate win rate
+        const mostUsedStmt = db.prepare(`
+            SELECT dc.card_name, SUM(dc.quantity) as total_qty
+            FROM decklist_cards dc
+            JOIN decklists d ON dc.decklist_id = d.id
+            WHERE d.user_id = ? 
+              AND dc.is_sideboard = 0
+              AND dc.card_name NOT IN ('Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes')
+            GROUP BY dc.card_name
+            ORDER BY total_qty DESC
+            LIMIT 1
+        `);
+
         const leaderboard = stats.map(p => {
             const totalMatches = p.match_wins + p.match_losses + p.match_draws;
+            const mostUsed = mostUsedStmt.get(p.id);
+
             return {
                 ...p,
                 totalMatches,
                 matchWinRate: totalMatches > 0 ? (p.match_wins / totalMatches) : 0,
                 gameWinRate: (p.game_wins + p.game_losses) > 0
                     ? (p.game_wins / (p.game_wins + p.game_losses))
-                    : 0
+                    : 0,
+                mostUsedCard: mostUsed ? mostUsed.card_name : null
             };
         });
 
