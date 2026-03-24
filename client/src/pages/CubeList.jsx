@@ -14,7 +14,10 @@ export default function CubeList() {
   const [editingVersionName, setEditingVersionName] = useState('');
   const [overrides, setOverrides] = useState({});
   const basicLandNames = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes'];
-  
+
+  // Filter State
+  const [searchTerm, setSearchTerm] = useState('');
+
   // Card Edit State
   const [editingCard, setEditingCard] = useState(null);
   const [newImageUrl, setNewImageUrl] = useState('');
@@ -205,12 +208,30 @@ export default function CubeList() {
     }
   };
 
+  const filteredCards = cards.filter(card => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      card.card_name.toLowerCase().includes(term) ||
+      (card.type_line && card.type_line.toLowerCase().includes(term))
+    );
+  });
+
   return (
     <>
       <div className="page-header">
         <h2 style={{ margin: 0 }}>Cube List Gallery</h2>
 
-        <div className="page-controls">
+        <div className="page-controls" style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input 
+            type="text" 
+            placeholder="Search cards..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="input-field"
+            style={{ padding: '0.6rem 1rem', minWidth: '200px' }}
+          />
+
           <select 
             className="input-field" 
             value={selectedVersion} 
@@ -238,11 +259,15 @@ export default function CubeList() {
         </div>
       </div>
 
-      <div className="badge badge-info mb-6">{cards.length} Cards Loaded</div>
+      <div className="badge badge-info mb-6">{filteredCards.length} Cards Loaded</div>
 
       {loading ? (
         <div className="row justify-center" style={{ height: '200px' }}>
           <div className="spinner" />
+        </div>
+      ) : filteredCards.length === 0 ? (
+        <div className="glass-box text-center" style={{ padding: '4rem 0', marginTop: '2rem' }}>
+          <h3 className="text-muted">No cards found matching your search.</h3>
         </div>
       ) : (
         <div style={{
@@ -250,7 +275,7 @@ export default function CubeList() {
           gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
           gap: '1rem'
         }}>
-          {cards.map(card => (
+          {filteredCards.map(card => (
             <div key={card.id} className="glass-box" style={{ padding: '0.5rem', textAlign: 'center' }}>
               <img 
                 src={card.override_image_url || card.image_url || 'https://cards.scryfall.io/large/back/a/a/aae0b138-03fd-4418-868f-aa822d665b1c.jpg'} 
