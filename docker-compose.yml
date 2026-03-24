@@ -10,6 +10,8 @@ services:
     volumes:
       # Mount a local data folder so the SQLite database persists across container restarts
       - ./data:/app/data
+      # Mount the uploads folder to persist user avatars
+      - ./uploads:/app/uploads
     environment:
       - NODE_ENV=production
       - PORT=8080
