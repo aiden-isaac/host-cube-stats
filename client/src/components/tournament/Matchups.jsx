@@ -86,11 +86,11 @@ export default function Matchups({ tournament, matches, isHost, user, socket }) 
       
       {/* Overview/Pairings Table */}
       <div className="glass-box">
-        <div className="row justify-between align-center mb-6">
+        <div className="col gap-4 align-center text-center mb-6">
           <h2 style={{ margin: 0 }}>Round {currentRound > 0 ? currentRound : 1} Pairings</h2>
           
           {isHost && (
-            <div>
+            <div className="row gap-2 justify-center" style={{ flexWrap: 'wrap' }}>
               {currentRound === 0 ? (
                 <button className="btn btn-primary" onClick={handleGeneratePairings} disabled={generating}>
                   {generating ? 'Pairing...' : 'Generate Round 1 Pairings'}

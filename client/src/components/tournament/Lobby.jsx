@@ -37,12 +37,12 @@ export default function Lobby({ tournament, players, isHost, user }) {
 
   return (
     <div className="glass-box">
-      <div className="row justify-between align-center mb-6">
+      <div className="col gap-4 align-center text-center mb-6">
         <div>
           <h2 style={{ margin: 0, color: 'var(--primary)' }}>{tournament.name}</h2>
           <p style={{ margin: 0, fontSize: '0.9rem' }}>Format: {tournament.format.toUpperCase()} | Players: {players.length} / {tournament.max_players}</p>
         </div>
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ textAlign: 'center' }}>
           <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>JOIN CODE</p>
           <div className="badge badge-info" style={{ fontSize: '1.2rem', padding: '0.4rem 1rem', letterSpacing: '0.1em' }}>
             {tournament.join_code}

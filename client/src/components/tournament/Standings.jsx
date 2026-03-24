@@ -69,7 +69,7 @@ export default function Standings({ tournament, players }) {
 
   return (
     <div className="col gap-6" style={{ alignItems: 'center', minHeight: '60vh' }}>
-      <div className="row justify-between w-full align-center" style={{ maxWidth: '800px' }}>
+      <div className="col gap-4 align-center text-center w-full" style={{ maxWidth: '800px' }}>
         <h2>Results</h2>
         <button className="btn btn-primary" onClick={handleExport} disabled={exporting}>
           {exporting ? 'Generating...' : 'Export Deck & Record Graphic'}
