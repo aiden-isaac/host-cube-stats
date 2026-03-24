@@ -144,7 +144,7 @@ router.get('/active', requireAuth, (req, res) => {
             JOIN tournaments t ON m.tournament_id = t.id
             LEFT JOIN users u1 ON m.player1_id = u1.id
             LEFT JOIN users u2 ON m.player2_id = u2.id
-            WHERE t.status = 'active'
+            WHERE t.status = 'playing'
               AND m.status != 'complete'
               AND m.round_number = t.current_round
               AND (m.player1_id = ? OR m.player2_id = ?)
