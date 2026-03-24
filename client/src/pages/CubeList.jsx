@@ -138,7 +138,7 @@ export default function CubeList() {
     setScryfallLoading(true);
     setScryfallPrints([]);
     try {
-      const res = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(cardName)}"&unique=art&order=released&dir=desc`);
+      const res = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(cardName)}"&unique=prints&order=released&dir=desc`);
       const data = await res.json();
       if (data.data) {
         const prints = data.data.map(c => {
