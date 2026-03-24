@@ -30,8 +30,23 @@ export default function AppShell() {
         if (data.cards && data.cards.length > 0) {
           const updateBg = () => {
             const randomCard = data.cards[Math.floor(Math.random() * data.cards.length)];
-            if (randomCard.art_crop_url) {
-              setBgImage(randomCard.art_crop_url);
+            
+            let artUrl = randomCard.art_crop_url;
+            if (randomCard.override_image_url) {
+              // Try to convert the override URL to an art crop URL if it's from Scryfall
+              if (randomCard.override_image_url.includes('/normal/')) {
+                artUrl = randomCard.override_image_url.replace('/normal/', '/art_crop/');
+              } else if (randomCard.override_image_url.includes('/large/')) {
+                artUrl = randomCard.override_image_url.replace('/large/', '/art_crop/');
+              } else if (randomCard.override_image_url.includes('/small/')) {
+                artUrl = randomCard.override_image_url.replace('/small/', '/art_crop/');
+              } else {
+                artUrl = randomCard.override_image_url;
+              }
+            }
+
+            if (artUrl) {
+              setBgImage(artUrl);
               setArtistName(randomCard.artist || "Unknown");
             }
           };
