@@ -1,15 +1,17 @@
+version: '3.8'
+
 services:
   cube-stats:
     build: .
-    container_name: cube-stats
+    container_name: cube-stats-v2
     restart: unless-stopped
     ports:
-      - "8888:8080"
+      - "8080:8080"
     volumes:
-      # Persist SQLite database
+      # Mount a local data folder so the SQLite database persists across container restarts
       - ./data:/app/data
     environment:
       - NODE_ENV=production
       - PORT=8080
-      # Change this to a secure random string in production!
-      - JWT_SECRET=WvxR8oViJAjT
+      - JWT_SECRET=${JWT_SECRET:-super-secret-default-key-change-me}
+      - SCRYFALL_CACHE_DAYS=30

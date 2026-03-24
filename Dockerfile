@@ -1,22 +1,31 @@
-FROM node:20-alpine
+# Build the React Frontend
+FROM node:18-alpine AS frontend-builder
+WORKDIR /app/client
+COPY client/package*.json ./
+RUN npm install
+COPY client/ ./
+RUN npm run build
 
+# Build the Node.js Backend
+FROM node:18-alpine
 WORKDIR /app
+# We create a data directory for the SQLite database
+RUN mkdir -p /app/data
 
-# Copy package files first for better caching
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install --production
 
-# Copy application files
-COPY server.js auth.js database.js ./
-COPY public/ ./public/
+COPY src/ ./src/
+# Copy the built React app into the expected directory
+COPY --from=frontend-builder /app/client/dist ./client/dist
 
-# Create data directory
-RUN mkdir -p data
+# Set environment variables for production
+ENV NODE_ENV=production
+ENV PORT=8080
+# Override the DB path to point to the persistent volume
+ENV DB_PATH=/app/data/database.sqlite
 
-# Expose port
+# Expose the API and WebSocket port
 EXPOSE 8080
 
-# Start the server
-CMD ["node", "server.js"]
+CMD ["node", "src/server.js"]
