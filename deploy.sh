@@ -25,4 +25,4 @@ echo "📦 Rebuilding Docker container..."
 ssh "$REMOTE_USER@$REMOTE_HOST" "cd $REMOTE_PATH && docker compose down && docker compose up -d --build"
 
 echo "✅ Deployment complete!"
-echo "🌐 App should be available at cube.frizzt.com (port 8888)"
+echo '🌐 App should be available at cube.frizzt.com, port 8888'
