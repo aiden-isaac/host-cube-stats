@@ -85,6 +85,58 @@ router.get('/version/:id', requireAuth, (req, res) => {
     }
 });
 
+// GET /api/cube/version/:id/stats — get card stats (inclusion & win rates)
+router.get('/version/:id/stats', requireAuth, (req, res) => {
+    try {
+        const db = getDb();
+        const versionId = req.params.id;
+
+        const totalDecklists = db.prepare(`
+            SELECT COUNT(*) as count 
+            FROM decklists d 
+            JOIN tournaments t ON d.tournament_id = t.id 
+            WHERE t.cube_version_id = ?
+        `).get(versionId).count;
+
+        const stats = db.prepare(`
+            SELECT 
+                dc.card_name,
+                COUNT(DISTINCT dc.decklist_id) as inclusion_count,
+                SUM(
+                    CASE WHEN m.player1_id = d.user_id THEN m.player1_wins
+                         WHEN m.player2_id = d.user_id THEN m.player2_wins
+                         ELSE 0 END
+                ) as total_game_wins,
+                SUM(
+                    CASE WHEN m.player1_id = d.user_id THEN m.player1_wins + m.player2_wins
+                         WHEN m.player2_id = d.user_id THEN m.player1_wins + m.player2_wins
+                         ELSE 0 END
+                ) as total_games_played
+            FROM decklist_cards dc
+            JOIN decklists d ON dc.decklist_id = d.id
+            JOIN tournaments t ON d.tournament_id = t.id
+            LEFT JOIN matches m ON m.tournament_id = t.id AND (m.player1_id = d.user_id OR m.player2_id = d.user_id) AND m.status = 'complete'
+            WHERE t.cube_version_id = ? AND dc.is_sideboard = 0
+            GROUP BY dc.card_name
+        `).all(versionId);
+
+        const statsMap = {};
+        for (const s of stats) {
+            statsMap[s.card_name] = {
+                inclusionRate: totalDecklists > 0 ? ((s.inclusion_count / totalDecklists) * 100).toFixed(1) : 0,
+                winRate: s.total_games_played > 0 ? ((s.total_game_wins / s.total_games_played) * 100).toFixed(1) : 0,
+                inclusionCount: s.inclusion_count,
+                totalDecklists
+            };
+        }
+
+        res.json({ stats: statsMap });
+    } catch (error) {
+        console.error('Get version stats error:', error);
+        res.status(500).json({ error: 'Failed to load cube version stats' });
+    }
+});
+
 // POST /api/cube/version — create new version (host-only)
 router.post('/version', requireAuth, requireHost, async (req, res) => {
     try {

@@ -17,6 +17,7 @@ export default function CubeList() {
 
   // Filter State
   const [searchTerm, setSearchTerm] = useState('');
+  const [cardStats, setCardStats] = useState({});
 
   // Card Edit State
   const [editingCard, setEditingCard] = useState(null);
@@ -67,6 +68,19 @@ export default function CubeList() {
         const verId = data.version.id.toString();
         setSelectedVersion(verId);
         localStorage.setItem('selectedCubeVersion', verId);
+        
+        // Fetch stats
+        try {
+          const statsRes = await fetch(`/api/cube/version/${verId}/stats`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const statsData = await statsRes.json();
+          if (statsRes.ok) {
+            setCardStats(statsData.stats || {});
+          }
+        } catch (err) {
+          console.error('Failed to load stats', err);
+        }
       }
     } catch (err) {
       addToast(err.message, 'error');
@@ -275,35 +289,43 @@ export default function CubeList() {
           gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
           gap: '1rem'
         }}>
-          {filteredCards.map(card => (
-            <div key={card.id} className="glass-box" style={{ padding: '0.5rem', textAlign: 'center' }}>
-              <img 
-                src={card.override_image_url || card.image_url || 'https://cards.scryfall.io/large/back/a/a/aae0b138-03fd-4418-868f-aa822d665b1c.jpg'} 
-                alt={card.card_name} 
-                className={isHost ? 'editable-card' : ''}
-                onClick={() => {
-                  if (isHost) {
-                    setEditingCard(card);
-                    setNewImageUrl(card.override_image_url || card.image_url || '');
-                    fetchScryfallPrints(card.card_name);
-                  }
-                }}
-                style={{ 
-                  width: '100%', 
-                  borderRadius: 'inherit', 
-                  display: 'block',
-                  cursor: isHost ? 'pointer' : 'default',
-                  transition: 'transform 0.2s',
-                  ':hover': isHost ? { transform: 'scale(1.05)' } : {}
-                }}
-                loading="lazy"
-              />
-              <p style={{ marginTop: '0.5rem', marginBottom: 0, fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                {card.card_name}
-              </p>
-            </div>
-          ))}
-          {cards.length === 0 && <p>No cards found in this version.</p>}
+          {filteredCards.map(card => {
+            const stats = cardStats[card.card_name];
+            return (
+              <div key={card.id} className="glass-box" style={{ padding: '0.5rem', textAlign: 'center' }}>
+                <img 
+                  src={card.override_image_url || card.image_url || 'https://cards.scryfall.io/large/back/a/a/aae0b138-03fd-4418-868f-aa822d665b1c.jpg'} 
+                  alt={card.card_name} 
+                  className={isHost ? 'editable-card' : ''}
+                  onClick={() => {
+                    if (isHost) {
+                      setEditingCard(card);
+                      setNewImageUrl(card.override_image_url || card.image_url || '');
+                      fetchScryfallPrints(card.card_name);
+                    }
+                  }}
+                  style={{ 
+                    width: '100%', 
+                    borderRadius: 'inherit', 
+                    display: 'block', 
+                    cursor: isHost ? 'pointer' : 'default',
+                    transition: 'transform 0.2s',
+                    ':hover': isHost ? { transform: 'scale(1.05)' } : {}
+                  }}
+                  loading="lazy"
+                />
+                <p style={{ marginTop: '0.5rem', marginBottom: 0, fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                  {card.card_name}
+                </p>
+                {stats && (
+                  <div className="row justify-center gap-4 mt-2" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    <div title="Inclusion Rate (Maindeck)"><strong style={{ color: 'var(--primary)' }}>INC:</strong> {stats.inclusionRate}%</div>
+                    <div title="Game Win Rate (When Maindecked)"><strong style={{ color: 'var(--success)' }}>WR:</strong> {stats.winRate}%</div>
+                  </div>
+                )}
+              </div>
+            );
+          })}          {cards.length === 0 && <p>No cards found in this version.</p>}
         </div>
       )}
 
