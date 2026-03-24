@@ -18,6 +18,7 @@ export default function AppShell() {
   };
 
   const [bgImage, setBgImage] = useState("https://api.scryfall.com/cards/fdn/140?format=image&version=art_crop");
+  const [artistName, setArtistName] = useState("Unknown");
 
   useEffect(() => {
     let intervalId;
@@ -29,7 +30,10 @@ export default function AppShell() {
         if (data.cards && data.cards.length > 0) {
           const updateBg = () => {
             const randomCard = data.cards[Math.floor(Math.random() * data.cards.length)];
-            if (randomCard.art_crop_url) setBgImage(randomCard.art_crop_url);
+            if (randomCard.art_crop_url) {
+              setBgImage(randomCard.art_crop_url);
+              setArtistName(randomCard.artist || "Unknown");
+            }
           };
           updateBg();
           intervalId = setInterval(updateBg, 30000);
@@ -88,7 +92,7 @@ export default function AppShell() {
       {/* Legal Footer */}
       <footer style={{ padding: '1.5rem', textAlign: 'center', opacity: 0.6, fontSize: '0.8rem' }}>
         <p>Cube Stats is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. &copy;Wizards of the Coast LLC.</p>
-        <p style={{ marginTop: '0.5rem' }}>Artist Credit: <span id="artist-credit-name">Unknown</span></p>
+        <p style={{ marginTop: '0.5rem' }}>Artist Credit: <span id="artist-credit-name">{artistName}</span></p>
       </footer>
     </>
   );
