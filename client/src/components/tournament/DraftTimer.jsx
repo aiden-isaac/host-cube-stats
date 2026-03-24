@@ -105,7 +105,7 @@ export default function DraftTimer({ tournament, isHost, socket }) {
       <p>Pass your packs around the table.</p>
 
       <div style={{
-        fontSize: '8rem',
+        fontSize: 'clamp(4rem, 15vw, 8rem)',
         fontWeight: 700,
         fontVariantNumeric: 'tabular-nums',
         margin: '2rem 0',

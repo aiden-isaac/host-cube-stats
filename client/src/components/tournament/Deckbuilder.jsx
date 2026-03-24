@@ -17,27 +17,37 @@ export default function Deckbuilder({ tournament, players, isHost, user }) {
   const myPlayer = players.find(p => p.user_id === user.id);
   const hasSubmitted = myPlayer?.decklist_submitted === 1;
 
-  useEffect(() => {
-    if (hasSubmitted) {
-      fetchDecklistAndGenerateSuggestions();
+  const handleSuggestBasics = async () => {
+    if (!decklistText.trim()) {
+      addToast('Please paste your drafted cards first.', 'warning');
+      return;
     }
-  }, [hasSubmitted]);
-
-  const fetchDecklistAndGenerateSuggestions = async () => {
     setSuggestionsLoading(true);
     try {
-      // 1. Fetch user's decklist from the tournament
-      const res = await fetch(`/api/decklists/tournaments/${tournament.id}/decklists`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch decklists');
+      // 1. Parse decklist text
+      const lines = decklistText.split('\n');
+      const maindeck = [];
+      let inSideboard = false;
+      
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.toLowerCase() === 'sideboard') {
+          inSideboard = true;
+          continue;
+        }
+        if (!inSideboard) {
+          const match = trimmed.match(/^(\d+)x?\s+(.+)$/i);
+          if (match) {
+            maindeck.push({ card_name: match[2], quantity: parseInt(match[1]) });
+          } else {
+            maindeck.push({ card_name: trimmed, quantity: 1 });
+          }
+        }
+      }
 
-      const myDeck = data.decklists.find(d => d.user_id === user.id);
-      if (!myDeck || !myDeck.cards) return;
+      if (maindeck.length === 0) return;
 
-      // Filter maindeck only
-      const maindeck = myDeck.cards.filter(c => !c.is_sideboard);
       const totalMaindeckCount = maindeck.reduce((sum, c) => sum + c.quantity, 0);
       const landsNeeded = Math.max(0, 40 - totalMaindeckCount);
 
@@ -77,37 +87,73 @@ export default function Deckbuilder({ tournament, players, isHost, user }) {
             if (part.component === 'token') {
               const tokenKey = part.name;
               if (!tokenMap.has(tokenKey)) {
-                tokenMap.set(tokenKey, { name: part.name, count: 0, uri: part.uri });
+                tokenMap.set(tokenKey, { name: part.name, uri: part.uri });
               }
-              // Add enough tokens proportional to quantity (heuristically just 1 per qty, though cards can make multiple)
-              tokenMap.get(tokenKey).count += qty; 
             }
           });
         }
       }
 
       // Calculate Basic Lands distribution
-      const totalPips = Object.values(devotion).reduce((a, b) => a + b, 0);
       let suggestedLands = { Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 };
+      const totalPips = Object.values(devotion).reduce((a, b) => a + b, 0);
 
       if (totalPips > 0 && landsNeeded > 0) {
-        let remainingLands = landsNeeded;
-
         suggestedLands.Plains = Math.round((devotion.W / totalPips) * landsNeeded);
         suggestedLands.Island = Math.round((devotion.U / totalPips) * landsNeeded);
         suggestedLands.Swamp = Math.round((devotion.B / totalPips) * landsNeeded);
         suggestedLands.Mountain = Math.round((devotion.R / totalPips) * landsNeeded);
 
-        // Ensure exact amount by dumping remainder into Forest or adjusting
         const sumSoFar = suggestedLands.Plains + suggestedLands.Island + suggestedLands.Swamp + suggestedLands.Mountain;
         suggestedLands.Forest = Math.max(0, landsNeeded - sumSoFar);
       }
 
-      setBasicLands(suggestedLands);
-      setTokens(Array.from(tokenMap.values()));
+      // Fetch token images from Scryfall using their URIs
+      const fetchedTokens = [];
+      for (const token of tokenMap.values()) {
+        if (token.uri) {
+          try {
+            const tokenRes = await fetch(token.uri);
+            const tokenData = await tokenRes.json();
+            if (tokenData.image_uris) {
+               fetchedTokens.push({ name: tokenData.name, imageUrl: tokenData.image_uris.normal });
+            } else if (tokenData.card_faces && tokenData.card_faces[0].image_uris) {
+               fetchedTokens.push({ name: tokenData.name, imageUrl: tokenData.card_faces[0].image_uris.normal });
+            }
+          } catch (e) {
+             console.error("Failed to fetch token image", e);
+          }
+        }
+      }
+      setTokens(fetchedTokens);
+      
+      // Auto-add basics to text if landsNeeded > 0
+      if (landsNeeded > 0) {
+        let basicsText = "";
+        if (suggestedLands.Plains > 0) basicsText += `${suggestedLands.Plains} Plains\n`;
+        if (suggestedLands.Island > 0) basicsText += `${suggestedLands.Island} Island\n`;
+        if (suggestedLands.Swamp > 0) basicsText += `${suggestedLands.Swamp} Swamp\n`;
+        if (suggestedLands.Mountain > 0) basicsText += `${suggestedLands.Mountain} Mountain\n`;
+        if (suggestedLands.Forest > 0) basicsText += `${suggestedLands.Forest} Forest\n`;
+        
+        let newText = decklistText.trim();
+        
+        if (newText.toLowerCase().includes("sideboard")) {
+           const parts = newText.split(/sideboard/i);
+           newText = parts[0].trim() + "\n" + basicsText.trim() + "\n\nSideboard\n" + parts[1].trim();
+        } else {
+           newText = newText + "\n" + basicsText.trim();
+        }
+        
+        setDecklistText(newText);
+        addToast(`Added ${landsNeeded} suggested basic lands.`, 'success');
+      } else {
+        addToast("Deck is already 40 or more cards. Generated tokens.", 'info');
+      }
 
     } catch (err) {
       console.error('Failed to generate suggestions:', err);
+      addToast('Failed to parse and fetch suggestions.', 'error');
     } finally {
       setSuggestionsLoading(false);
     }
@@ -169,39 +215,6 @@ export default function Deckbuilder({ tournament, players, isHost, user }) {
                 <h3>Deck Submitted!</h3>
                 <p>Waiting for other players to finish...</p>
               </div>
-
-              {suggestionsLoading ? (
-                <div className="spinner mt-4" style={{ margin: '0 auto' }} />
-              ) : (
-                <>
-                  {basicLands && (
-                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: 'var(--radius-sm)' }}>
-                      <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Suggested Basic Lands</h4>
-                      <div className="row justify-center gap-4" style={{ flexWrap: 'wrap' }}>
-                        {Object.entries(basicLands).map(([land, count]) => count > 0 && (
-                          <div key={land} className="badge" style={{ fontSize: '1rem', padding: '0.5rem 1rem' }}>
-                            {count} {land}
-                          </div>
-                        ))}
-                      </div>
-                      <p style={{ fontSize: '0.75rem', marginTop: '0.5rem', opacity: 0.6 }}>Based on your maindeck devotion.</p>
-                    </div>
-                  )}
-
-                  {tokens.length > 0 && (
-                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: 'var(--radius-sm)' }}>
-                      <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Tokens Needed</h4>
-                      <div className="row justify-center gap-2" style={{ flexWrap: 'wrap' }}>
-                        {tokens.map(token => (
-                          <div key={token.name} className="badge badge-info" style={{ fontSize: '0.9rem' }}>
-                            {token.count}x {token.name}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
             </div>
           ) : (
             <form onSubmit={handleSubmitDeck}>
@@ -229,11 +242,35 @@ export default function Deckbuilder({ tournament, players, isHost, user }) {
                   Put sideboard cards beneath a "Sideboard" line.
                 </p>
               </div>
+              
+              <div className="row gap-4 mb-4">
+                <button type="button" className="btn btn-secondary w-full" onClick={handleSuggestBasics} disabled={suggestionsLoading}>
+                  {suggestionsLoading ? 'Calculating...' : 'Suggest Basics & Find Tokens'}
+                </button>
+              </div>
 
               <button type="submit" className="btn btn-primary w-full" disabled={submitting}>
                 {submitting ? 'Submitting...' : 'Submit Final Deck'}
               </button>
             </form>
+          )}
+          
+          {tokens.length > 0 && (
+            <div className="glass-box mt-6" style={{ background: 'rgba(0,0,0,0.2)' }}>
+              <h4 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Tokens Needed</h4>
+              <div className="row justify-center gap-4" style={{ flexWrap: 'wrap' }}>
+                {tokens.map(token => (
+                  <div key={token.name} className="col align-center text-center" style={{ width: '120px' }}>
+                    <img 
+                      src={token.imageUrl || 'https://cards.scryfall.io/large/back/a/a/aae0b138-03fd-4418-868f-aa822d665b1c.jpg'} 
+                      alt={token.name} 
+                      style={{ width: '100%', borderRadius: '4.75% / 3.5%', display: 'block', marginBottom: '0.5rem' }} 
+                    />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{token.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 
