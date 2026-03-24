@@ -10,8 +10,8 @@ LOCAL_PATH="/home/aiden/Projects/host-cube-stats"
 echo "🚀 Deploying Cube Stats to $REMOTE_USER@$REMOTE_HOST..."
 
 # Sync files, excluding data directory and node_modules
-# Added --delete to remove old files on the remote that no longer exist locally
-rsync -avz --delete --progress \
+# Removed --delete so it only adds or updates instead of deleting
+rsync -avz --progress \
     --exclude 'data/' \
     --exclude 'uploads/' \
     --exclude 'node_modules/' \
