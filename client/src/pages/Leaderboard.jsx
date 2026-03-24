@@ -177,7 +177,7 @@ export default function Leaderboard() {
       
       {/* Personal Stats Export Card */}
       <div className="col gap-4 align-center w-full">
-        <div className="row justify-between w-full align-center" style={{ maxWidth: '700px' }}>
+        <div className="col align-center text-center w-full" style={{ maxWidth: '700px', gap: '0.5rem' }}>
           <h2>My Performance</h2>
           <button className="btn btn-secondary" onClick={handleExportStats} disabled={exporting}>
             {exporting ? 'Generating...' : 'Export Stat Card'}
