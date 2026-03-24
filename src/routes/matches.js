@@ -304,7 +304,12 @@ router.get('/leaderboard', requireAuth, (req, res) => {
 
         // Calculate win rate
         const mostUsedStmt = db.prepare(`
-            SELECT dc.card_name, SUM(dc.quantity) as total_qty
+            SELECT dc.card_name, SUM(dc.quantity) as total_qty,
+                   COALESCE(
+                       (SELECT image_url FROM image_overrides WHERE card_name = dc.card_name),
+                       (SELECT image_url FROM cube_cards WHERE card_name = dc.card_name LIMIT 1),
+                       (SELECT art_crop_url FROM cached_artworks WHERE card_name = dc.card_name LIMIT 1)
+                   ) as image_url
             FROM decklist_cards dc
             JOIN decklists d ON dc.decklist_id = d.id
             WHERE d.user_id = ? 
@@ -326,7 +331,8 @@ router.get('/leaderboard', requireAuth, (req, res) => {
                 gameWinRate: (p.game_wins + p.game_losses) > 0
                     ? (p.game_wins / (p.game_wins + p.game_losses))
                     : 0,
-                mostUsedCard: mostUsed ? mostUsed.card_name : null
+                mostUsedCard: mostUsed ? mostUsed.card_name : null,
+                mostUsedCardUrl: mostUsed ? mostUsed.image_url : null
             };
         });
 

@@ -253,6 +253,9 @@ export default function Leaderboard() {
           {myStats.mostUsedCard && (
             <div className="w-full text-center mt-6 p-4" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-sm)' }}>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>MOST DRAFTED CARD</div>
+              {myStats.mostUsedCardUrl && (
+                <img src={myStats.mostUsedCardUrl} alt={myStats.mostUsedCard} style={{ width: '150px', borderRadius: '4.75% / 3.5%', display: 'block', margin: '0.5rem auto' }} />
+              )}
               <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--primary)' }}>{myStats.mostUsedCard}</div>
             </div>
           )}

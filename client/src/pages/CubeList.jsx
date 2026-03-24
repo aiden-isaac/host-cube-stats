@@ -17,6 +17,7 @@ export default function CubeList() {
 
   // Filter State
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortMethod, setSortMethod] = useState('name');
   const [cardStats, setCardStats] = useState({});
 
   // Card Edit State
@@ -229,6 +230,17 @@ export default function CubeList() {
       card.card_name.toLowerCase().includes(term) ||
       (card.type_line && card.type_line.toLowerCase().includes(term))
     );
+  }).sort((a, b) => {
+    if (sortMethod === 'name') return a.card_name.localeCompare(b.card_name);
+    if (sortMethod === 'mv') return (a.cmc || 0) - (b.cmc || 0) || a.card_name.localeCompare(b.card_name);
+    
+    const statsA = cardStats[a.card_name] || { inclusionRate: 0, winRate: 0 };
+    const statsB = cardStats[b.card_name] || { inclusionRate: 0, winRate: 0 };
+    
+    if (sortMethod === 'inclusion') return parseFloat(statsB.inclusionRate) - parseFloat(statsA.inclusionRate) || a.card_name.localeCompare(b.card_name);
+    if (sortMethod === 'winrate') return parseFloat(statsB.winRate) - parseFloat(statsA.winRate) || a.card_name.localeCompare(b.card_name);
+    
+    return 0;
   });
 
   return (
@@ -245,6 +257,18 @@ export default function CubeList() {
             className="input-field"
             style={{ padding: '0.6rem 1rem', minWidth: '200px' }}
           />
+
+          <select
+            className="input-field"
+            value={sortMethod}
+            onChange={(e) => setSortMethod(e.target.value)}
+            style={{ padding: '0.6rem 1rem' }}
+          >
+            <option value="name">Sort by Name</option>
+            <option value="mv">Sort by Mana Value</option>
+            <option value="inclusion">Sort by Inclusion %</option>
+            <option value="winrate">Sort by Win Rate %</option>
+          </select>
 
           <select 
             className="input-field" 
