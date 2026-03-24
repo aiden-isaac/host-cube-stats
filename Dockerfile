@@ -9,6 +9,10 @@ RUN npm run build
 # Build the Node.js Backend
 FROM node:22-alpine
 WORKDIR /app
+
+# Install fonts for sharp/librsvg text rendering in SVGs
+RUN apk add --no-cache font-liberation ttf-freefont fontconfig
+
 # We create a data directory for the SQLite database
 RUN mkdir -p /app/data
 
