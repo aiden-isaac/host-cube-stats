@@ -52,27 +52,35 @@ A self-hosted MTG Cube tournament management platform. One master cube list, ful
 | Card Data | Scryfall API |
 | Deploy | Docker + Cloudflare Tunnel |
 
-## Quick Start
+## Quick Start (Development)
 
 ```bash
-# Install dependencies
+# Install backend dependencies
 npm install
 
-# Start development server
+# Start backend development server
+npm run dev
+
+# In a new terminal, start frontend
+cd client
+npm install
 npm run dev
 ```
 
-## Deployment
+## Deployment (Production)
+
+The application is containerized and ready for production deployment on a Raspberry Pi (or any Docker host).
 
 ```bash
-docker compose up -d
+# Build and start the container
+docker compose up -d --build
 ```
 
 Live at `cube.frizzt.com` via Cloudflare Tunnel → `localhost:8888`.
 
 ## Project Status
 
-🚧 **v2 is in planning/development.** See [implementation_plan.md](implementation_plan.md) for the full technical plan.
+🚀 **v2 Beta is complete.** The platform is fully functional for hosting and playing cube tournaments. See [implementation_plan.md](implementation_plan.md) for the original technical roadmap.
 
 ## Future Roadmap
 - Camera-based card scanning for decklists
