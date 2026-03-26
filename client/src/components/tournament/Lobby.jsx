@@ -50,7 +50,7 @@ export default function Lobby({ tournament, players, isHost, user }) {
         </div>
       </div>
 
-      <h3 style={{ borderBottom: '1px solid var(--surface-border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+      <h3 style={{ borderBottom: '1px solid var(--surface-border)', paddingBottom: '0.5rem', marginBottom: '1rem', marginTop: '1.5rem' }}>
         Lobby ({players.length}/{tournament.max_players})
       </h3>
       
