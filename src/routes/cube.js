@@ -193,8 +193,6 @@ router.post('/version', requireAuth, requireHost, async (req, res) => {
             });
         }
 
-        const db = getDb();
-
         // Close out current version
         db.prepare('UPDATE cube_versions SET end_date = ? WHERE end_date IS NULL')
             .run(startDate);
