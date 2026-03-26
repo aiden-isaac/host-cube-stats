@@ -68,8 +68,9 @@ export default function AppShell() {
       {/* Top Header / Navigation */}
       <header className="app-header">
         <div className="title-area">
-          <h2 style={{ margin: 0 }}>
-            <img src="/logo.jpg" alt="Cube Stats" style={{ height: '40px' }} />
+          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center' }}>
+            <img src="/logo.png" alt="Cube Stats Logo" style={{ height: '40px' }} />
+            <img src="/text.png" alt="Cube Stats" style={{ height: '20px', marginLeft: '12px' }} />
           </h2>
         </div>
 
