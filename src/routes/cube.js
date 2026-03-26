@@ -140,21 +140,47 @@ router.get('/version/:id/stats', requireAuth, (req, res) => {
 // POST /api/cube/version — create new version (host-only)
 router.post('/version', requireAuth, requireHost, async (req, res) => {
     try {
-        const { name, startDate, cardNames } = req.body;
+        const { name, startDate, cardNames, addCardName, replaceCardName } = req.body;
 
-        if (!name || !startDate || !cardNames || !Array.isArray(cardNames)) {
-            return res.status(400).json({ error: 'Name, startDate, and cardNames array required' });
+        if (!name || !startDate) {
+            return res.status(400).json({ error: 'Name and startDate required' });
         }
 
-        // Clean card names: strip quantities (e.g. "2x Lightning Bolt" -> "Lightning Bolt")
-        const cleanedNames = cardNames.map(n => {
-            const trimmed = String(n).trim();
-            const match = trimmed.match(/^(\d+)x?\s+(.+)$/i);
-            const rawName = match ? match[2].trim() : trimmed;
-            return rawName.split('//')[0].trim();
-        }).filter(Boolean);
+        let uniqueCards = [];
+        const db = getDb();
 
-        const uniqueCards = [...new Set(cleanedNames)];
+        if (cardNames && Array.isArray(cardNames)) {
+            const cleanedNames = cardNames.map(n => {
+                const trimmed = String(n).trim();
+                const match = trimmed.match(/^(\d+)x?\s+(.+)$/i);
+                const rawName = match ? match[2].trim() : trimmed;
+                return rawName.split('//')[0].trim();
+            }).filter(Boolean);
+            uniqueCards = [...new Set(cleanedNames)];
+        } else if (addCardName) {
+            const currentVersion = db.prepare(
+                'SELECT id FROM cube_versions WHERE end_date IS NULL ORDER BY created_at DESC LIMIT 1'
+            ).get();
+
+            if (!currentVersion) {
+                return res.status(400).json({ error: 'No current version to update from' });
+            }
+
+            const currentCards = db.prepare('SELECT card_name FROM cube_cards WHERE version_id = ?').all(currentVersion.id);
+            let currentNames = currentCards.map(c => c.card_name);
+
+            if (replaceCardName) {
+                currentNames = currentNames.filter(n => n.toLowerCase() !== replaceCardName.toLowerCase());
+            }
+
+            let finalAddName = addCardName.trim();
+            if (finalAddName.includes('//')) finalAddName = finalAddName.split('//')[0].trim();
+            currentNames.push(finalAddName);
+
+            uniqueCards = [...new Set(currentNames)];
+        } else {
+            return res.status(400).json({ error: 'Must provide either cardNames array or addCardName' });
+        }
 
         // Validate via Scryfall synchronously
         const { validateAndFetchCards } = require('../services/scryfall');

@@ -27,6 +27,9 @@ export default function CubeList() {
   const [scryfallPrints, setScryfallPrints] = useState([]);
   
   // New Version Form State
+  const [updateMode, setUpdateMode] = useState('add_replace');
+  const [addCardName, setAddCardName] = useState('');
+  const [replaceCardName, setReplaceCardName] = useState('');
   const [newName, setNewName] = useState('');
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
   const [newCardList, setNewCardList] = useState('');
@@ -101,7 +104,17 @@ export default function CubeList() {
     e.preventDefault();
     setCreating(true);
 
-    const cardNames = newCardList.split('\n').map(l => l.trim()).filter(Boolean);
+    const payload = {
+      name: newName,
+      startDate: newDate,
+    };
+
+    if (updateMode === 'full_import') {
+      payload.cardNames = newCardList.split('\n').map(l => l.trim()).filter(Boolean);
+    } else {
+      payload.addCardName = addCardName;
+      payload.replaceCardName = replaceCardName;
+    }
 
     try {
       const res = await fetch('/api/cube/version', {
@@ -110,20 +123,18 @@ export default function CubeList() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          name: newName,
-          startDate: newDate,
-          cardNames
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to create version');
+      if (!res.ok) throw new Error(data.error || 'Failed to update cube');
 
-      addToast('New cube version created successfully!', 'success');
+      addToast('Cube updated successfully!', 'success');
       setShowModal(false);
       setNewName('');
       setNewCardList('');
+      setAddCardName('');
+      setReplaceCardName('');
       
       // Refresh data
       fetchVersions();
@@ -290,7 +301,7 @@ export default function CubeList() {
                 Cube Settings
               </button>
               <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-                + Create Version
+                Update Cube
               </button>
             </div>
           )}
@@ -363,12 +374,25 @@ export default function CubeList() {
         }}>
           <div className="glass-box" style={{ width: '90%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="row justify-between align-center mb-4">
-              <h3 style={{ margin: 0 }}>Create New Cube Version</h3>
+              <h3 style={{ margin: 0 }}>Update Cube Version</h3>
               <button 
                 className="btn btn-ghost" 
                 onClick={() => setShowModal(false)}
                 style={{ padding: '0.2rem 0.5rem' }}
               >✕</button>
+            </div>
+
+            <div className="row gap-2 mb-4">
+              <button 
+                className={`btn ${updateMode === 'add_replace' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ flex: 1 }}
+                onClick={() => setUpdateMode('add_replace')}
+              >Add/Replace Card</button>
+              <button 
+                className={`btn ${updateMode === 'full_import' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ flex: 1 }}
+                onClick={() => setUpdateMode('full_import')}
+              >Full Import</button>
             </div>
 
             <form onSubmit={handleCreateVersion}>
@@ -393,21 +417,49 @@ export default function CubeList() {
                 />
               </div>
 
-              <div className="form-group">
-                <label>Card List (One per line)</label>
-                <textarea 
-                  rows="10" 
-                  value={newCardList} 
-                  onChange={e => setNewCardList(e.target.value)}
-                  required
-                  placeholder="Lightning Bolt\nBrainstorm\nCounterspell"
-                />
-              </div>
+              {updateMode === 'full_import' ? (
+                <div className="form-group">
+                  <label>Card List (One per line)</label>
+                  <textarea 
+                    rows="10" 
+                    value={newCardList} 
+                    onChange={e => setNewCardList(e.target.value)}
+                    required
+                    placeholder="Lightning Bolt\nBrainstorm\nCounterspell"
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="form-group">
+                    <label>Add Card Name</label>
+                    <input 
+                      type="text" 
+                      value={addCardName} 
+                      onChange={e => setAddCardName(e.target.value)} 
+                      required 
+                      placeholder="e.g. Black Lotus"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Replaces (Optional)</label>
+                    <input 
+                      type="text" 
+                      list="current-cube-cards"
+                      value={replaceCardName} 
+                      onChange={e => setReplaceCardName(e.target.value)} 
+                      placeholder="Type to search current cube..."
+                    />
+                    <datalist id="current-cube-cards">
+                      {cards.map(c => <option key={c.id} value={c.card_name} />)}
+                    </datalist>
+                  </div>
+                </>
+              )}
 
               <div className="row gap-2 mt-4">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={creating} style={{ flex: 1 }}>
-                  {creating ? 'Creating & Fetching Artwork...' : 'Create Version'}
+                  {creating ? 'Creating & Fetching Artwork...' : 'Update Cube'}
                 </button>
               </div>
             </form>
