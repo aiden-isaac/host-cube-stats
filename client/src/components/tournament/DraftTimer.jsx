@@ -120,13 +120,6 @@ export default function DraftTimer({ tournament, isHost, socket }) {
         <div style={{ maxWidth: '400px', margin: '0 auto', width: '100%', padding: '1.5rem', background: 'rgba(0,0,0,0.3)', borderRadius: 'var(--radius-md)' }}>
           <h4 style={{ marginBottom: '1rem' }}>Host Controls</h4>
           
-          <div className="row gap-2 justify-center" style={{ flexWrap: 'wrap', marginBottom: '1rem' }}>
-            <button className="btn btn-ghost" onClick={() => handleStartTimer(60)}>60s</button>
-            <button className="btn btn-ghost" onClick={() => handleStartTimer(50)}>50s</button>
-            <button className="btn btn-ghost" onClick={() => handleStartTimer(40)}>40s</button>
-            <button className="btn btn-ghost" onClick={() => handleStartTimer(30)}>30s</button>
-          </div>
-          
           <div className="row gap-4 justify-center" style={{ marginBottom: '2rem' }}>
              <input 
                type="number" 
