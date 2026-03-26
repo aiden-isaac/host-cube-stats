@@ -45,7 +45,9 @@ router.post('/', requireAuth, requireHost, (req, res) => {
             joinCode = generateJoinCode();
         } while (db.prepare('SELECT id FROM tournaments WHERE join_code = ?').get(joinCode));
 
-        const calculatedRounds = Math.max(3, Math.ceil(Math.log2(maxPlayers)));
+        let calculatedRounds = Math.ceil(Math.log2(maxPlayers));
+        if (maxPlayers === 2) calculatedRounds = 1;
+        else if (maxPlayers === 3) calculatedRounds = 2;
 
         const result = db.prepare(`
             INSERT INTO tournaments (name, join_code, format, max_players, 
@@ -296,6 +298,22 @@ router.get('/:id/standings', requireAuth, (req, res) => {
     } catch (error) {
         console.error('Standings error:', error);
         res.status(500).json({ error: 'Failed to calculate standings' });
+    }
+});
+
+// DELETE /api/tournaments/:id — delete tournament (host-only)
+router.delete('/:id', requireAuth, requireHost, (req, res) => {
+    try {
+        const db = getDb();
+        const tournament = db.prepare('SELECT * FROM tournaments WHERE id = ?').get(req.params.id);
+        if (!tournament) {
+            return res.status(404).json({ error: 'Tournament not found' });
+        }
+        db.prepare('DELETE FROM tournaments WHERE id = ?').run(req.params.id);
+        res.json({ message: 'Tournament deleted' });
+    } catch (error) {
+        console.error('Delete tournament error:', error);
+        res.status(500).json({ error: 'Failed to delete tournament' });
     }
 });
 

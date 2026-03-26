@@ -59,6 +59,23 @@ export default function Decklists() {
     window.location.href = `/api/decklists/${id}/image`;
   };
 
+  const handleDeleteDecklist = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this decklist?')) return;
+    try {
+      const res = await fetch(`/api/decklists/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete decklist');
+      
+      addToast('Decklist deleted!', 'success');
+      setDecklists(prev => prev.filter(d => d.id !== id));
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
   const openEditModal = (deck) => {
     setEditingDeck(deck);
     setEditTitle(deck.deck_title);
@@ -180,7 +197,10 @@ export default function Decklists() {
                     Download Visual
                   </button>
                   {isHost && (
-                     <button className="btn btn-ghost" onClick={() => openEditModal(deck)}>Edit</button>
+                    <>
+                      <button className="btn btn-ghost" onClick={() => openEditModal(deck)}>Edit</button>
+                      <button className="btn btn-ghost" style={{ color: 'var(--danger)' }} onClick={() => handleDeleteDecklist(deck.id)}>Delete</button>
+                    </>
                   )}
                 </div>
               </div>

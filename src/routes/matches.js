@@ -36,7 +36,10 @@ router.post('/tournaments/:id/pairings', requireAuth, requireHost, (req, res) =>
         ).get(req.params.id).count;
 
         if (!tournament.total_rounds) {
-            const totalRounds = Math.ceil(Math.log2(playerCount));
+            let totalRounds = Math.ceil(Math.log2(playerCount));
+            if (playerCount === 2) totalRounds = 1;
+            else if (playerCount === 3) totalRounds = 2;
+            
             db.prepare('UPDATE tournaments SET total_rounds = ? WHERE id = ?')
                 .run(totalRounds, req.params.id);
             tournament.total_rounds = totalRounds;

@@ -16,6 +16,7 @@ export default function GameList() {
   const [creating, setCreating] = useState(false);
   const [tName, setTName] = useState('');
   const [tPlayers, setTPlayers] = useState(8);
+  const [tFormat, setTFormat] = useState('bo1');
   const [draftTimer, setDraftTimer] = useState(false);
   const [matchTimer, setMatchTimer] = useState(false);
   
@@ -41,6 +42,24 @@ export default function GameList() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteTournament = async (e, id) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this tournament? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`/api/tournaments/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete tournament');
+      
+      addToast('Tournament deleted!', 'success');
+      setTournaments(prev => prev.filter(t => t.id !== id));
+    } catch (err) {
+      addToast(err.message, 'error');
     }
   };
 
@@ -76,6 +95,7 @@ export default function GameList() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
           name: tName,
+          format: tFormat,
           maxPlayers: tPlayers,
           draftTimerEnabled: draftTimer,
           draftTimerSeconds: draftTimer ? 60 : 0,
@@ -148,9 +168,21 @@ export default function GameList() {
                 <span className={`badge ${t.status === 'complete' ? 'badge-success' : 'badge-info'}`}>
                   {t.status.toUpperCase()}
                 </span>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  {new Date(t.created_at).toLocaleDateString()}
-                </span>
+                <div className="row align-center gap-2">
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    {new Date(t.created_at).toLocaleDateString()}
+                  </span>
+                  {isHost && (
+                    <button 
+                      className="btn btn-ghost" 
+                      style={{ padding: '0.1rem 0.3rem', color: 'var(--danger)', border: 'none', minWidth: 'auto', background: 'transparent' }}
+                      onClick={(e) => handleDeleteTournament(e, t.id)}
+                      title="Delete Tournament"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
               <h3 style={{ margin: '0.5rem 0' }}>{t.name}</h3>
               <p style={{ margin: 0, fontSize: '0.9rem' }}>
@@ -192,6 +224,15 @@ export default function GameList() {
                   <option value={6}>6 Players</option>
                   <option value={7}>7 Players</option>
                   <option value={8}>8 Players</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '1rem' }}>
+                <label>Format</label>
+                <select value={tFormat} onChange={e => setTFormat(e.target.value)}>
+                  <option value="bo1">Best of 1</option>
+                  <option value="bo3">Best of 3</option>
+                  <option value="bo5">Best of 5</option>
                 </select>
               </div>
 

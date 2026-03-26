@@ -273,4 +273,20 @@ router.get('/:id/image', async (req, res) => {
     }
 });
 
+// DELETE /api/decklists/:id — delete decklist (host-only)
+router.delete('/:id', requireAuth, requireHost, (req, res) => {
+    try {
+        const db = getDb();
+        const decklist = db.prepare('SELECT * FROM decklists WHERE id = ?').get(req.params.id);
+        if (!decklist) {
+            return res.status(404).json({ error: 'Decklist not found' });
+        }
+        db.prepare('DELETE FROM decklists WHERE id = ?').run(req.params.id);
+        res.json({ message: 'Decklist deleted' });
+    } catch (error) {
+        console.error('Delete decklist error:', error);
+        res.status(500).json({ error: 'Failed to delete decklist' });
+    }
+});
+
 module.exports = router;
