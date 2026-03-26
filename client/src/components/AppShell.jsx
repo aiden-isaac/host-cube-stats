@@ -68,7 +68,9 @@ export default function AppShell() {
       {/* Top Header / Navigation */}
       <header className="app-header">
         <div className="title-area">
-          <h2 className="text-gradient" style={{ margin: 0 }}>Cube Stats</h2>
+          <h2 style={{ margin: 0 }}>
+            <img src="/logo.jpg" alt="Cube Stats" style={{ height: '40px' }} />
+          </h2>
         </div>
 
         <nav className="nav-links">

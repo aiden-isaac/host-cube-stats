@@ -85,7 +85,9 @@ export default function Login() {
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
         <div className="glass-box" style={{ width: '100%', maxWidth: '400px' }}>
           <div className="text-center mb-6">
-            <h1 className="text-gradient">Cube Stats</h1>
+            <h1 style={{ margin: 0 }}>
+              <img src="/logo.jpg" alt="Cube Stats" style={{ height: '80px', margin: '0 auto' }} />
+            </h1>
             <p>{isLogin ? 'Welcome back, planeswalker.' : 'Create your account to start drafting.'}</p>
           </div>
 
