@@ -4,6 +4,9 @@ import { useToast } from '../components/ToastProvider';
 export default function Settings() {
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [lifetrackerBlur, setLifetrackerBlur] = useState(
+    localStorage.getItem('lifetrackerBlur') === 'true'
+  );
   const { addToast } = useToast();
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -11,6 +14,12 @@ export default function Settings() {
   useEffect(() => {
     setDisplayName(user.displayName || '');
   }, []);
+
+  const handleToggleBlur = (e) => {
+    const val = e.target.checked;
+    setLifetrackerBlur(val);
+    localStorage.setItem('lifetrackerBlur', val);
+  };
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
@@ -57,6 +66,13 @@ export default function Settings() {
             onChange={e => setDisplayName(e.target.value)} 
             placeholder="How others see you"
           />
+        </div>
+
+        <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}>
+          <label className="toggle-wrapper" style={{ flex: 1, cursor: 'pointer' }}>
+            <input type="checkbox" checked={lifetrackerBlur} onChange={handleToggleBlur} />
+            <span style={{ marginLeft: '0.5rem' }}>Blur Lifetracker Avatar Background</span>
+          </label>
         </div>
 
         <button type="submit" className="btn btn-primary mt-4" disabled={loading}>

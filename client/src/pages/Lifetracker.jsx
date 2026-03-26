@@ -49,6 +49,7 @@ export default function Lifetracker() {
   };
 
   const PlayerSection = ({ life, playerNum, isUpsideDown }) => {
+    const blurBg = localStorage.getItem('lifetrackerBlur') === 'true';
     let bgImage = 'none';
     let bgColor = playerNum === 1 ? 'var(--surface-color)' : 'rgba(15,23,42,1)';
     
@@ -85,9 +86,9 @@ export default function Lifetracker() {
         {/* Dark overlay so life total is readable over avatar */}
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: bgImage !== 'none' ? 'rgba(0,0,0,0.4)' : 'transparent',
-          backdropFilter: bgImage !== 'none' ? 'blur(10px)' : 'none',
-          WebkitBackdropFilter: bgImage !== 'none' ? 'blur(10px)' : 'none',
+          backgroundColor: bgImage !== 'none' ? (blurBg ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.6)') : 'transparent',
+          backdropFilter: bgImage !== 'none' && blurBg ? 'blur(10px)' : 'none',
+          WebkitBackdropFilter: bgImage !== 'none' && blurBg ? 'blur(10px)' : 'none',
           pointerEvents: 'none',
           zIndex: 1
         }} />
