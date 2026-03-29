@@ -36,6 +36,38 @@ export default function CubeList() {
   const [pendingRemoves, setPendingRemoves] = useState(loadPending('cubePendingRemoves'));
   const [addInput, setAddInput] = useState('');
   const [removeInput, setRemoveInput] = useState('');
+  const [addingCard, setAddingCard] = useState(false);
+
+  const handleAddCard = async () => {
+    const input = addInput.trim();
+    if (!input) return;
+
+    setAddingCard(true);
+    try {
+      const res = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(input)}`);
+      const data = await res.json();
+
+      if (data.object === 'error') {
+        throw new Error(`Card not found: ${input}`);
+      }
+
+      const matchedName = data.name;
+      
+      if (!pendingAdds.includes(matchedName)) {
+        setPendingAdds(prev => [...prev, matchedName]);
+        if (input.toLowerCase() !== matchedName.toLowerCase()) {
+          addToast(`Matched "${input}" to "${matchedName}"`, 'info');
+        }
+      } else {
+        addToast(`"${matchedName}" is already pending to be added.`, 'info');
+      }
+      setAddInput('');
+    } catch (err) {
+      addToast(err.message, 'error');
+    } finally {
+      setAddingCard(false);
+    }
+  };
   
   const [newName, setNewName] = useState('');
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
@@ -471,23 +503,18 @@ export default function CubeList() {
                         value={addInput} 
                         onChange={e => setAddInput(e.target.value)} 
                         placeholder="e.g. Black Lotus"
+                        disabled={addingCard}
                         onKeyDown={e => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
-                            if (addInput.trim()) {
-                              setPendingAdds([...pendingAdds, addInput.trim()]);
-                              setAddInput('');
-                            }
+                            handleAddCard();
                           }
                         }}
                       />
                     </div>
-                    <button type="button" className="btn btn-secondary" onClick={() => {
-                      if (addInput.trim()) {
-                        setPendingAdds([...pendingAdds, addInput.trim()]);
-                        setAddInput('');
-                      }
-                    }}>Add</button>
+                    <button type="button" className="btn btn-secondary" disabled={addingCard} onClick={handleAddCard}>
+                      {addingCard ? '...' : 'Add'}
+                    </button>
                   </div>
                   <div className="form-group row gap-2 align-end">
                     <div style={{ flex: 1 }}>
