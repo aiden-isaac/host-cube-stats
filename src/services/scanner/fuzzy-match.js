@@ -1,22 +1,20 @@
 /**
- * Fuzzy Match — SymSpell-based card name matching against cube dictionary
+ * Fuzzy Match — Levenshtein-based card name matching against cube dictionary
  * 
  * Sources card names from the cube_cards DB table (current active version).
- * Uses SymSpell Symmetric Delete algorithm for fast fuzzy matching of OCR text.
+ * Uses Levenshtein distance for fuzzy matching — optimal for small dictionaries (~500 cards).
  */
 
 const { getDb } = require('../../db/database');
 
-// SymSpell configuration
-const MAX_EDIT_DISTANCE = 3;     // Dictionary pre-computation distance
-const LOOKUP_DISTANCE = 2;       // Runtime max edit distance for lookups
-const PREFIX_LENGTH = 7;
+// Configuration
+const LOOKUP_DISTANCE = 2;       // Max edit distance for fuzzy matches
 
 // Cached state
-let dictionary = null;           // Set of card names for O(1) exact lookup
-let symspellDict = null;         // SymSpell instance
+let dictionary = null;           // Array of card names
+let dictionaryLower = null;      // Lowercase versions for case-insensitive matching
+let dictionarySet = null;        // Set for O(1) exact lookup
 let cachedVersionId = null;      // Track cube version for invalidation
-let SymSpell = null;             // Lazy-loaded module reference
 
 // Common MTG keywords that should NOT be treated as card names
 const KEYWORD_BLOCKLIST = new Set([
@@ -44,21 +42,62 @@ const KEYWORD_BLOCKLIST = new Set([
 
 // Regex patterns for non-card text
 const NOISE_PATTERNS = [
-    /^[\d\s/]+$/,                           // Pure numbers / fractions (collector numbers)
-    /^\d+\/\d+$/,                           // Set collector numbers: "123/456"
+    /^[\d\s/]+$/,                           // Pure numbers / fractions
+    /^\d+\/\d+$/,                           // Collector numbers: "123/456"
     /^[WUBRG\d{}]+$/i,                      // Mana symbols: "{2}{W}{U}"
     /^\([^)]+\)$/,                          // Parenthetical reminder text
     /©/,                                    // Copyright notices
     /™/,                                    // Trademark symbols
-    /^(Creature|Instant|Sorcery|Enchantment|Artifact|Planeswalker|Land)\s*[—\-]/i, // Type lines with dash
+    /^(Creature|Instant|Sorcery|Enchantment|Artifact|Planeswalker|Land)\s*[—\-]/i,
     /^illus\./i,                            // Artist credits
 ];
 
 /**
- * Initialize or refresh the card dictionary from the cube_cards table.
- * Called lazily on first scan, and refreshes if cube version changed.
+ * Compute Levenshtein distance between two strings.
+ * Optimized with early termination when distance exceeds maxDistance.
  */
-async function ensureDictionary() {
+function levenshtein(a, b, maxDistance = Infinity) {
+    const la = a.length;
+    const lb = b.length;
+
+    // Quick length-based rejection
+    if (Math.abs(la - lb) > maxDistance) return maxDistance + 1;
+    if (la === 0) return lb;
+    if (lb === 0) return la;
+
+    // Single-row DP
+    let prev = new Array(lb + 1);
+    let curr = new Array(lb + 1);
+
+    for (let j = 0; j <= lb; j++) prev[j] = j;
+
+    for (let i = 1; i <= la; i++) {
+        curr[0] = i;
+        let minInRow = curr[0];
+
+        for (let j = 1; j <= lb; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            curr[j] = Math.min(
+                prev[j] + 1,       // deletion
+                curr[j - 1] + 1,   // insertion
+                prev[j - 1] + cost  // substitution
+            );
+            if (curr[j] < minInRow) minInRow = curr[j];
+        }
+
+        // Early termination: if entire row exceeds max, no point continuing
+        if (minInRow > maxDistance) return maxDistance + 1;
+
+        [prev, curr] = [curr, prev];
+    }
+
+    return prev[lb];
+}
+
+/**
+ * Initialize or refresh the card dictionary from the cube_cards table.
+ */
+function ensureDictionary() {
     const db = getDb();
 
     // Get current active cube version
@@ -72,12 +111,11 @@ async function ensureDictionary() {
 
     // Check if we need to rebuild
     if (dictionary && cachedVersionId === currentVersion.id) {
-        return; // Already loaded and current
+        return;
     }
 
     console.log(`[Scanner] Loading card dictionary for cube version ${currentVersion.id}...`);
 
-    // Fetch all card names from the current cube version
     const rows = db.prepare(
         'SELECT DISTINCT card_name FROM cube_cards WHERE version_id = ?'
     ).all(currentVersion.id);
@@ -88,53 +126,32 @@ async function ensureDictionary() {
         throw new Error('No cards found in the current cube version.');
     }
 
-    // Build exact lookup set
-    dictionary = new Set(cardNames.map(n => n.toLowerCase()));
-
-    // Build SymSpell dictionary
-    // Lazy-load symspell-ex
-    if (!SymSpell) {
-        try {
-            SymSpell = require('symspell-ex');
-        } catch (err) {
-            throw new Error('symspell-ex not installed. Run: npm install symspell-ex');
-        }
-    }
-
-    symspellDict = new SymSpell.SymSpell(MAX_EDIT_DISTANCE, PREFIX_LENGTH);
-
-    // Add each card name to the SymSpell dictionary with frequency 1
-    for (const name of cardNames) {
-        symspellDict.createDictionaryEntry(name, 1);
-    }
-
+    dictionary = cardNames;
+    dictionaryLower = cardNames.map(n => n.toLowerCase());
+    dictionarySet = new Set(dictionaryLower);
     cachedVersionId = currentVersion.id;
+
     console.log(`[Scanner] Loaded ${cardNames.length} card names into dictionary.`);
 }
 
 /**
  * Check if an OCR text line should be filtered out as noise.
- * @param {string} text - The OCR detected text
- * @param {number} confidence - Tesseract confidence score
- * @returns {{ isNoise: boolean, reason: string | null }}
  */
 function checkNoise(text, confidence) {
     const trimmed = text.trim();
     const lower = trimmed.toLowerCase();
 
-    // Single word in keyword blocklist
     if (KEYWORD_BLOCKLIST.has(lower)) {
         return { isNoise: true, reason: 'keyword_blocklist' };
     }
 
-    // Check regex noise patterns
     for (const pattern of NOISE_PATTERNS) {
         if (pattern.test(trimmed)) {
             return { isNoise: true, reason: 'noise_pattern' };
         }
     }
 
-    // Two-word max text that looks like artist credit (low confidence)
+    // Two-word text that looks like artist credit (low confidence)
     const words = trimmed.split(/\s+/);
     if (words.length === 2 && confidence < 70) {
         const looksLikeArtist = words.every(w => /^[A-Z][a-z]+$/.test(w));
@@ -143,7 +160,6 @@ function checkNoise(text, confidence) {
         }
     }
 
-    // Very short text with low confidence
     if (trimmed.length <= 2) {
         return { isNoise: true, reason: 'too_short' };
     }
@@ -152,13 +168,31 @@ function checkNoise(text, confidence) {
 }
 
 /**
- * Match an array of OCR lines against the cube card dictionary.
- * 
- * @param {Array<{ text: string, bbox: object, confidence: number }>} ocrLines
- * @returns {Promise<{ matches: Array, unmatched: Array }>}
+ * Find the best fuzzy match for a string in the dictionary.
+ * Returns { name, distance } or null if no match within maxDistance.
  */
-async function matchLines(ocrLines) {
-    await ensureDictionary();
+function findBestMatch(text, maxDistance = LOOKUP_DISTANCE) {
+    const lower = text.toLowerCase();
+    let bestName = null;
+    let bestDist = maxDistance + 1;
+
+    for (let i = 0; i < dictionaryLower.length; i++) {
+        const dist = levenshtein(lower, dictionaryLower[i], bestDist);
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestName = dictionary[i]; // Return the properly-cased name
+            if (dist === 0) break; // Exact match, stop searching
+        }
+    }
+
+    return bestDist <= maxDistance ? { name: bestName, distance: bestDist } : null;
+}
+
+/**
+ * Match an array of OCR lines against the cube card dictionary.
+ */
+function matchLines(ocrLines) {
+    ensureDictionary();
 
     const matches = [];
     const unmatched = [];
@@ -179,61 +213,29 @@ async function matchLines(ocrLines) {
             continue;
         }
 
-        // 1. Try exact match
-        if (dictionary.has(lower)) {
-            // Find the correctly-cased name from the dictionary
-            const exactName = findExactName(lower);
+        // Apply stricter distance for short text
+        const maxDist = text.length <= 4 ? 1 : LOOKUP_DISTANCE;
+        const match = findBestMatch(text, maxDist);
+
+        if (match) {
             matches.push({
                 ocrText: text,
-                matchedName: exactName,
-                editDistance: 0,
+                matchedName: match.name,
+                editDistance: match.distance,
                 confidence: line.confidence,
                 bbox: line.bbox
             });
-            continue;
+        } else {
+            unmatched.push({
+                ocrText: text,
+                confidence: line.confidence,
+                bbox: line.bbox,
+                reason: 'no_dictionary_match'
+            });
         }
-
-        // 2. Try SymSpell fuzzy match
-        const suggestions = symspellDict.lookup(text, SymSpell.Verbosity.Closest, LOOKUP_DISTANCE);
-
-        if (suggestions && suggestions.length > 0) {
-            const best = suggestions[0];
-
-            // Apply stricter rules for short text
-            const maxAllowedDistance = text.length <= 4 ? 1 : LOOKUP_DISTANCE;
-            if (best.distance <= maxAllowedDistance) {
-                matches.push({
-                    ocrText: text,
-                    matchedName: best.term,
-                    editDistance: best.distance,
-                    confidence: line.confidence,
-                    bbox: line.bbox
-                });
-                continue;
-            }
-        }
-
-        // 3. No match found
-        unmatched.push({
-            ocrText: text,
-            confidence: line.confidence,
-            bbox: line.bbox,
-            reason: 'no_dictionary_match'
-        });
     }
 
     return { matches, unmatched };
-}
-
-/**
- * Find the correctly-cased name from the DB for a lowercase match.
- */
-function findExactName(lowerName) {
-    const db = getDb();
-    const row = db.prepare(
-        'SELECT card_name FROM cube_cards WHERE version_id = ? AND LOWER(card_name) = ? LIMIT 1'
-    ).get(cachedVersionId, lowerName);
-    return row ? row.card_name : lowerName;
 }
 
 /**
@@ -241,7 +243,8 @@ function findExactName(lowerName) {
  */
 function invalidateDictionary() {
     dictionary = null;
-    symspellDict = null;
+    dictionaryLower = null;
+    dictionarySet = null;
     cachedVersionId = null;
 }
 
