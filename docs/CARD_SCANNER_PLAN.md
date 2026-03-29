@@ -4,15 +4,8 @@ Add a "Scan Deck" capability to Cube Stats that lets a player photograph their f
 
 ## User Review Required
 
-> [!IMPORTANT]
-> **Architecture decision: Node.js-only vs Python sidecar**.
-> The plan below keeps everything in Node.js to avoid a second runtime in Docker. The tradeoff is that OpenCV-grade preprocessing is handled by `sharp` (a native image library already in the project) rather than full OpenCV. If you'd prefer a Python sidecar with `opencv-python` + `pytesseract` for maximum OCR quality, flag it now — the API contract stays the same, only the Docker image grows ~200MB.
-
-> [!WARNING]
-> **Custom `mtg.traineddata` file**. The plan assumes you will source this from [AlexandreArpin/mtg-card-identifier](https://github.com/AlexandreArpin/mtg-card-identifier) and commit it to `data/tesseract/`. If that repo doesn't provide a standalone `.traineddata`, we'll need to train one ourselves using `tesstrain` — this is a multi-hour process and a separate task.
-
-> [!CAUTION]
-> **Pi 4 RAM ceiling (1–4 GB)**. The full `VintageAtomic.json` is ~70 MB uncompressed. We extract only the card name list (~30K strings, ~1.5 MB in memory) and load the SymSpell dictionary lazily on first scan. This keeps RSS under ~60 MB for the scanner module. If your Pi is the 1 GB model, memory will be tight when combined with the existing server. The plan includes guidance on this.
+> [!NOTE]
+> **Confirmed decisions**: Using `sharp` for preprocessing (no OpenCV/Python). Target device is **Pi 4 (4 GB)**. Custom `mtg.traineddata` will be placed in the project root by the user. Card name dictionary sourced from the **cube_cards DB table** (current cube iteration only). No automated tests — manual testing with guided walkthrough.
 
 ---
 
@@ -79,12 +72,14 @@ Key design notes:
 
 Dependencies:
 - NPM: `symspell-ex@^1.0.5` — JavaScript port of SymSpell with Symmetric Delete algorithm. Pure JS, no native deps, ARM-safe.
-- Data: `data/mtgjson/card-names.json` — extracted from MTGJSON `VintageAtomic.json`
+- Data: sourced from the **`cube_cards` DB table** (current active cube version only)
 
 Responsibilities:
-- On first call (lazy init), load `card-names.json` into a SymSpell dictionary with:
+- On first call (lazy init), query `SELECT DISTINCT card_name FROM cube_cards WHERE version_id = (SELECT id FROM cube_versions WHERE end_date IS NULL)` to get the current cube's card names
+- Load these into a SymSpell dictionary with:
   - `maxEditDistance = 3` (allows OCR typos like "Baieful Strix" → "Baleful Strix")
   - `prefixLength = 7`
+- Invalidate / reload dictionary when cube version changes (check version ID on each scan)
 - For each OCR line, attempt fuzzy lookup:
   1. Try exact match first (O(1) Set lookup)
   2. If no exact match, run SymSpell `lookup()` with `maxEditDistance=2`, `Verbosity.Closest`
@@ -102,19 +97,7 @@ Key design notes:
 
 ---
 
-#### [NEW] [mtgjson-setup.js](file:///home/aiden/Projects/host-cube-stats/src/scripts/mtgjson-setup.js)
-
-**One-time script to download and extract the MTGJSON card name dictionary.**
-
-Responsibilities:
-- Download `https://mtgjson.com/api/v5/VintageAtomic.json.zip` (or `.json.gz`)
-- Extract `Object.keys(data)` to produce a flat array of all card names
-- Normalize double-faced card names: `"Delver of Secrets // Insectile Aberration"` → keep both `"Delver of Secrets"` and `"Insectile Aberration"` as separate entries
-- Write to `data/mtgjson/card-names.json` as a JSON array
-- Add an npm script: `"mtgjson:update": "node src/scripts/mtgjson-setup.js"`
-- This runs once during initial setup and can be re-run to update the dictionary
-
-Output file size: ~700 KB (compressed ~200 KB). Load time on Pi 4: ~50ms.
+*(No MTGJSON setup script needed — card dictionary is sourced directly from the `cube_cards` DB table at runtime.)*
 
 ---
 
@@ -354,17 +337,14 @@ sequenceDiagram
 
 ## Pi 4 Constraints & Performance Budget
 
-| Step | Estimated Time (Pi 4) | Peak RAM | Notes |
+| Step | Estimated Time (Pi 4, 4GB) | Peak RAM | Notes |
 |---|---|---|---|
 | Image upload + save | ~100ms | ~10 MB | Multer buffer |
 | Sharp preprocessing | ~300ms | ~30 MB | Greyscale + normalize + sharpen |
 | Tesseract OCR (PSM 11) | ~2–4s | ~80 MB | Largest consumer; LSTM model in memory |
-| SymSpell fuzzy match | ~50ms | ~1.5 MB | Pre-computed dictionary, O(1) lookups |
+| SymSpell fuzzy match | ~50ms | ~0.5 MB | Cube-only dictionary (~500 cards), O(1) lookups |
 | Crop generation (sharp) | ~200ms | ~20 MB | Extract ~25 regions |
-| **Total** | **~3–5s** | **~80 MB peak** | Acceptable for single-user Pi deployment |
-
-> [!NOTE]
-> If the Pi is the 1 GB model, Tesseract's LSTM engine will use ~80 MB which combined with Node.js baseline (~50 MB) and the existing app leaves ~800 MB. This is workable but tight. On the 2/4 GB models this is not a concern.
+| **Total** | **~3–5s** | **~80 MB peak** | Comfortable on Pi 4 (4 GB) |
 
 ---
 
@@ -396,33 +376,7 @@ sequenceDiagram
 
 ## Verification Plan
 
-### Automated Tests
-
-**Backend unit tests** (Vitest, existing test framework):
-
-1. **`src/tests/scanner/fuzzy-match.test.js`** — Test SymSpell matching:
-   - Known OCR corruptions → correct card names (e.g., `"Baieful Strix"` → `"Baleful Strix"`)
-   - Noise rejection (type lines, keywords, artist credits)
-   - Edge cases: very short names (`"Bolt"` should NOT match `"Lightning Bolt"`), DFC names, names with apostrophes
-   - Run: `npm test -- --grep "fuzzy-match"`
-
-2. **`src/tests/scanner/ocr-preprocess.test.js`** — Test image preprocessing:
-   - Verify output is greyscale PNG
-   - Verify dimensions are capped at 3000px
-   - Verify low-res images get upscaled
-   - Run: `npm test -- --grep "ocr-preprocess"`
-
-3. **`src/tests/scanner/api.test.js`** — Integration test for the scan endpoint:
-   - POST a sample card photo → verify response structure
-   - Verify auth requirement
-   - Run: `npm test -- --grep "scanner api"`
-
-All tests: `npm test` from project root.
-
-### Manual Verification
-
-> [!IMPORTANT]
-> These tests require the full Tesseract + traineddata setup. They should be done after implementation is complete.
+### Manual Testing (guided walkthrough after implementation)
 
 1. **End-to-end scan test on Pi**:
    - Take a photo of 5–10 fanned MTG cards with only name bars visible
@@ -433,9 +387,9 @@ All tests: `npm test` from project root.
 
 2. **Failure mode test**:
    - Upload a blurry/dark photo → should see "No cards detected" warning
-   - Upload a photo of non-MTG text (e.g. a book page) → should see mostly unmatched results with noise filtered
+   - Upload a photo of non-MTG text → should see mostly unmatched/filtered results
 
-3. **Browser test** (if you want me to use the browser tool for UI verification):
+3. **UI walkthrough**:
    - Navigate to a tournament in deckbuilding phase
    - Click "📷 Scan Deck from Photo"
    - Verify modal opens, upload works, toggle between views works
