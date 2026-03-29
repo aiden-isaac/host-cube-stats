@@ -28,8 +28,15 @@ export default function CubeList() {
   
   // New Version Form State
   const [updateMode, setUpdateMode] = useState('add_replace');
-  const [addCardName, setAddCardName] = useState('');
-  const [replaceCardName, setReplaceCardName] = useState('');
+  
+  const loadPending = (key) => {
+    try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; }
+  };
+  const [pendingAdds, setPendingAdds] = useState(loadPending('cubePendingAdds'));
+  const [pendingRemoves, setPendingRemoves] = useState(loadPending('cubePendingRemoves'));
+  const [addInput, setAddInput] = useState('');
+  const [removeInput, setRemoveInput] = useState('');
+  
   const [newName, setNewName] = useState('');
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
   const [newCardList, setNewCardList] = useState('');
@@ -38,6 +45,11 @@ export default function CubeList() {
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isHost = user.role === 'host';
+
+  useEffect(() => {
+    localStorage.setItem('cubePendingAdds', JSON.stringify(pendingAdds));
+    localStorage.setItem('cubePendingRemoves', JSON.stringify(pendingRemoves));
+  }, [pendingAdds, pendingRemoves]);
 
   useEffect(() => {
     fetchVersions();
@@ -112,8 +124,8 @@ export default function CubeList() {
     if (updateMode === 'full_import') {
       payload.cardNames = newCardList.split('\n').map(l => l.trim()).filter(Boolean);
     } else {
-      payload.addCardName = addCardName;
-      payload.replaceCardName = replaceCardName;
+      payload.adds = pendingAdds;
+      payload.removes = pendingRemoves;
     }
 
     try {
@@ -133,8 +145,10 @@ export default function CubeList() {
       setShowModal(false);
       setNewName('');
       setNewCardList('');
-      setAddCardName('');
-      setReplaceCardName('');
+      setPendingAdds([]);
+      setPendingRemoves([]);
+      localStorage.removeItem('cubePendingAdds');
+      localStorage.removeItem('cubePendingRemoves');
       
       // Refresh data
       fetchVersions();
@@ -201,6 +215,25 @@ export default function CubeList() {
       if (!res.ok) throw new Error(data.error || 'Failed to update version');
       addToast('Version updated successfully!', 'success');
       fetchVersions();
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
+  const handleDeleteVersion = async () => {
+    if (!window.confirm('Are you sure you want to delete this cube version? This action cannot be undone.')) return;
+    try {
+      const res = await fetch(`/api/cube/version/${selectedVersion}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete version');
+      addToast('Version deleted successfully!', 'success');
+      setShowSettingsModal(false);
+      localStorage.removeItem('selectedCubeVersion');
+      await fetchVersions();
+      await fetchCubeData('current');
     } catch (err) {
       addToast(err.message, 'error');
     }
@@ -430,29 +463,80 @@ export default function CubeList() {
                 </div>
               ) : (
                 <>
-                  <div className="form-group">
-                    <label>Add Card Name</label>
-                    <input 
-                      type="text" 
-                      value={addCardName} 
-                      onChange={e => setAddCardName(e.target.value)} 
-                      required 
-                      placeholder="e.g. Black Lotus"
-                    />
+                  <div className="form-group row gap-2 align-end">
+                    <div style={{ flex: 1 }}>
+                      <label>Add Card Name</label>
+                      <input 
+                        type="text" 
+                        value={addInput} 
+                        onChange={e => setAddInput(e.target.value)} 
+                        placeholder="e.g. Black Lotus"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (addInput.trim()) {
+                              setPendingAdds([...pendingAdds, addInput.trim()]);
+                              setAddInput('');
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                    <button type="button" className="btn btn-secondary" onClick={() => {
+                      if (addInput.trim()) {
+                        setPendingAdds([...pendingAdds, addInput.trim()]);
+                        setAddInput('');
+                      }
+                    }}>Add</button>
                   </div>
-                  <div className="form-group">
-                    <label>Replaces (Optional)</label>
-                    <input 
-                      type="text" 
-                      list="current-cube-cards"
-                      value={replaceCardName} 
-                      onChange={e => setReplaceCardName(e.target.value)} 
-                      placeholder="Type to search current cube..."
-                    />
-                    <datalist id="current-cube-cards">
-                      {cards.map(c => <option key={c.id} value={c.card_name} />)}
-                    </datalist>
+                  <div className="form-group row gap-2 align-end">
+                    <div style={{ flex: 1 }}>
+                      <label>Remove Card</label>
+                      <input 
+                        type="text" 
+                        list="current-cube-cards"
+                        value={removeInput} 
+                        onChange={e => setRemoveInput(e.target.value)} 
+                        placeholder="Type to search current cube..."
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (removeInput.trim()) {
+                              setPendingRemoves([...pendingRemoves, removeInput.trim()]);
+                              setRemoveInput('');
+                            }
+                          }
+                        }}
+                      />
+                      <datalist id="current-cube-cards">
+                        {cards.map(c => <option key={c.id} value={c.card_name} />)}
+                      </datalist>
+                    </div>
+                    <button type="button" className="btn btn-secondary" onClick={() => {
+                      if (removeInput.trim()) {
+                        setPendingRemoves([...pendingRemoves, removeInput.trim()]);
+                        setRemoveInput('');
+                      }
+                    }}>Remove</button>
                   </div>
+
+                  {(pendingAdds.length > 0 || pendingRemoves.length > 0) && (
+                    <div className="glass-box mb-4" style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)' }}>
+                      <h4 style={{ margin: '0 0 0.5rem 0' }}>Pending Changes</h4>
+                      <ul style={{ margin: 0, paddingLeft: '1.5rem', fontSize: '0.9rem' }}>
+                        {pendingAdds.map((c, i) => (
+                          <li key={'add-'+i} style={{ color: 'var(--success)', marginBottom: '0.2rem' }}>
+                            + {c} <button type="button" className="btn btn-ghost text-danger" style={{ padding: '0 4px', height: 'auto', minHeight: 0 }} onClick={() => setPendingAdds(pendingAdds.filter((_, idx) => idx !== i))}>✕</button>
+                          </li>
+                        ))}
+                        {pendingRemoves.map((c, i) => (
+                          <li key={'rem-'+i} style={{ color: 'var(--danger)', marginBottom: '0.2rem' }}>
+                            - {c} <button type="button" className="btn btn-ghost text-danger" style={{ padding: '0 4px', height: 'auto', minHeight: 0 }} onClick={() => setPendingRemoves(pendingRemoves.filter((_, idx) => idx !== i))}>✕</button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -568,6 +652,11 @@ export default function CubeList() {
                 <button type="submit" className="btn btn-primary">Rename</button>
               </div>
             </form>
+
+            <div className="mb-6" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
+               <h4 style={{ color: 'var(--danger)', margin: '0 0 0.5rem 0' }}>Danger Zone</h4>
+               <button type="button" className="btn" style={{ width: '100%', background: 'rgba(255,50,50,0.2)', color: 'var(--danger)' }} onClick={handleDeleteVersion}>Delete This Version</button>
+            </div>
 
             <h4 className="mb-2">Global Basic Land Artwork</h4>
             <p className="text-secondary mb-4" style={{ fontSize: '0.9rem' }}>

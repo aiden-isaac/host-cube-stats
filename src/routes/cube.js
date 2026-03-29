@@ -91,12 +91,7 @@ router.get('/version/:id/stats', requireAuth, (req, res) => {
         const db = getDb();
         const versionId = req.params.id;
 
-        const totalDecklists = db.prepare(`
-            SELECT COUNT(*) as count 
-            FROM decklists d 
-            JOIN tournaments t ON d.tournament_id = t.id 
-            WHERE t.cube_version_id = ?
-        `).get(versionId).count;
+        const cardsInVersion = db.prepare(`SELECT card_name FROM cube_cards WHERE version_id = ?`).all(versionId).map(c => c.card_name);
 
         const stats = db.prepare(`
             SELECT 
@@ -116,18 +111,36 @@ router.get('/version/:id/stats', requireAuth, (req, res) => {
             JOIN decklists d ON dc.decklist_id = d.id
             JOIN tournaments t ON d.tournament_id = t.id
             LEFT JOIN matches m ON m.tournament_id = t.id AND (m.player1_id = d.user_id OR m.player2_id = d.user_id) AND m.status = 'complete'
-            WHERE t.cube_version_id = ? AND dc.is_sideboard = 0
+            WHERE dc.is_sideboard = 0
             GROUP BY dc.card_name
-        `).all(versionId);
+        `).all();
+
+        const legalDecklists = db.prepare(`
+            SELECT 
+                cc.card_name,
+                COUNT(DISTINCT d.id) as total_decklists
+            FROM cube_cards cc
+            JOIN tournaments t ON t.cube_version_id = cc.version_id
+            JOIN decklists d ON d.tournament_id = t.id
+            GROUP BY cc.card_name
+        `).all();
+        
+        const legalMap = {};
+        for (const l of legalDecklists) {
+            legalMap[l.card_name] = l.total_decklists;
+        }
 
         const statsMap = {};
         for (const s of stats) {
-            statsMap[s.card_name] = {
-                inclusionRate: totalDecklists > 0 ? ((s.inclusion_count / totalDecklists) * 100).toFixed(1) : 0,
-                winRate: s.total_games_played > 0 ? ((s.total_game_wins / s.total_games_played) * 100).toFixed(1) : 0,
-                inclusionCount: s.inclusion_count,
-                totalDecklists
-            };
+            if (cardsInVersion.includes(s.card_name)) {
+                const totalDecklists = legalMap[s.card_name] || 0;
+                statsMap[s.card_name] = {
+                    inclusionRate: totalDecklists > 0 ? ((s.inclusion_count / totalDecklists) * 100).toFixed(1) : 0,
+                    winRate: s.total_games_played > 0 ? ((s.total_game_wins / s.total_games_played) * 100).toFixed(1) : 0,
+                    inclusionCount: s.inclusion_count,
+                    totalDecklists
+                };
+            }
         }
 
         res.json({ stats: statsMap });
@@ -140,7 +153,7 @@ router.get('/version/:id/stats', requireAuth, (req, res) => {
 // POST /api/cube/version — create new version (host-only)
 router.post('/version', requireAuth, requireHost, async (req, res) => {
     try {
-        const { name, startDate, cardNames, addCardName, replaceCardName } = req.body;
+        const { name, startDate, cardNames, adds, removes, addCardName, replaceCardName } = req.body;
 
         if (!name || !startDate) {
             return res.status(400).json({ error: 'Name and startDate required' });
@@ -157,7 +170,7 @@ router.post('/version', requireAuth, requireHost, async (req, res) => {
                 return rawName.split('//')[0].trim();
             }).filter(Boolean);
             uniqueCards = [...new Set(cleanedNames)];
-        } else if (addCardName) {
+        } else if (adds || removes || addCardName) {
             const currentVersion = db.prepare(
                 'SELECT id FROM cube_versions WHERE end_date IS NULL ORDER BY created_at DESC LIMIT 1'
             ).get();
@@ -169,17 +182,25 @@ router.post('/version', requireAuth, requireHost, async (req, res) => {
             const currentCards = db.prepare('SELECT card_name FROM cube_cards WHERE version_id = ?').all(currentVersion.id);
             let currentNames = currentCards.map(c => c.card_name);
 
-            if (replaceCardName) {
-                currentNames = currentNames.filter(n => n.toLowerCase() !== replaceCardName.toLowerCase());
+            const toRemove = (removes || []).map(n => n.toLowerCase());
+            if (replaceCardName) toRemove.push(replaceCardName.toLowerCase());
+
+            if (toRemove.length > 0) {
+                currentNames = currentNames.filter(n => !toRemove.includes(n.toLowerCase()));
             }
 
-            let finalAddName = addCardName.trim();
-            if (finalAddName.includes('//')) finalAddName = finalAddName.split('//')[0].trim();
-            currentNames.push(finalAddName);
+            const toAdd = adds || [];
+            if (addCardName) toAdd.push(addCardName);
+
+            toAdd.forEach(addName => {
+                let finalAddName = addName.trim();
+                if (finalAddName.includes('//')) finalAddName = finalAddName.split('//')[0].trim();
+                if (finalAddName) currentNames.push(finalAddName);
+            });
 
             uniqueCards = [...new Set(currentNames)];
         } else {
-            return res.status(400).json({ error: 'Must provide either cardNames array or addCardName' });
+            return res.status(400).json({ error: 'Must provide either cardNames array or adds/removes' });
         }
 
         // Validate via Scryfall synchronously
@@ -265,6 +286,46 @@ router.put('/version/:id', requireAuth, requireHost, (req, res) => {
     } catch (error) {
         console.error('Update version error:', error);
         res.status(500).json({ error: 'Failed to update version' });
+    }
+});
+
+// DELETE /api/cube/version/:id — delete a version (host-only)
+router.delete('/version/:id', requireAuth, requireHost, (req, res) => {
+    try {
+        const db = getDb();
+        const versionId = req.params.id;
+
+        // Ensure not the only version
+        const count = db.prepare('SELECT COUNT(*) as c FROM cube_versions').get().c;
+        if (count <= 1) {
+            return res.status(400).json({ error: 'Cannot delete the only cube version' });
+        }
+
+        // Check for tournaments
+        const tCount = db.prepare('SELECT COUNT(*) as c FROM tournaments WHERE cube_version_id = ?').get(versionId).c;
+        if (tCount > 0) {
+            return res.status(400).json({ error: 'Cannot delete a version that has been used in a tournament' });
+        }
+
+        const version = db.prepare('SELECT * FROM cube_versions WHERE id = ?').get(versionId);
+        if (!version) {
+            return res.status(404).json({ error: 'Version not found' });
+        }
+
+        // If it's the current active version, activate the most recent one
+        if (!version.end_date) {
+            const prev = db.prepare('SELECT id FROM cube_versions WHERE id != ? ORDER BY created_at DESC LIMIT 1').get(versionId);
+            if (prev) {
+                db.prepare('UPDATE cube_versions SET end_date = NULL WHERE id = ?').run(prev.id);
+            }
+        }
+
+        db.prepare('DELETE FROM cube_versions WHERE id = ?').run(versionId);
+
+        res.json({ message: 'Version deleted successfully' });
+    } catch (error) {
+        console.error('Delete version error:', error);
+        res.status(500).json({ error: 'Failed to delete version' });
     }
 });
 
