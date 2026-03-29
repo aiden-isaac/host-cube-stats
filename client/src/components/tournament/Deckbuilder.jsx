@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../ToastProvider';
+import CardScanner from '../../pages/CardScanner';
 
 export default function Deckbuilder({ tournament, players, isHost, user }) {
   const { addToast } = useToast();
@@ -7,6 +8,7 @@ export default function Deckbuilder({ tournament, players, isHost, user }) {
   const [decklistText, setDecklistText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [advancing, setAdvancing] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   // Suggestions state
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
@@ -252,6 +254,10 @@ export default function Deckbuilder({ tournament, players, isHost, user }) {
               <button type="submit" className="btn btn-primary w-full" disabled={submitting}>
                 {submitting ? 'Submitting...' : 'Submit Final Deck'}
               </button>
+
+              <button type="button" className="btn btn-secondary w-full mt-4" onClick={() => setScannerOpen(true)}>
+                📷 Scan Deck from Photo
+              </button>
             </form>
           )}
           
@@ -310,6 +316,18 @@ export default function Deckbuilder({ tournament, players, isHost, user }) {
         </div>
 
       </div>
+
+      {scannerOpen && (
+        <CardScanner
+          tournamentId={tournament.id}
+          onComplete={(text) => {
+            setDecklistText(text);
+            setScannerOpen(false);
+            addToast('Scanned deck loaded! Review and submit.', 'success');
+          }}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
     </div>
   );
 }

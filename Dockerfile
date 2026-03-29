@@ -10,8 +10,8 @@ RUN npm run build
 FROM node:22-alpine
 WORKDIR /app
 
-# Install fonts for sharp/librsvg text rendering in SVGs
-RUN apk add --no-cache font-liberation ttf-freefont fontconfig
+# Install fonts for sharp/librsvg text rendering in SVGs, and Tesseract OCR for card scanning
+RUN apk add --no-cache font-liberation ttf-freefont fontconfig tesseract-ocr
 
 # We create a data directory for the SQLite database
 RUN mkdir -p /app/data
@@ -20,6 +20,10 @@ COPY package*.json ./
 RUN npm install --production
 
 COPY src/ ./src/
+
+# Copy custom MTG traineddata for card scanner OCR (if present)
+# User places mtg.traineddata in project root
+COPY mtg.traineddata* /usr/share/tessdata/
 # Copy the built React app into the expected directory
 COPY --from=frontend-builder /app/client/dist ./client/dist
 
