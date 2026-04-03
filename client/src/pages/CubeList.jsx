@@ -225,6 +225,33 @@ export default function CubeList() {
     }
   };
 
+  const handleExportText = () => {
+    const counts = {};
+    filteredCards.forEach(c => {
+      counts[c.card_name] = (counts[c.card_name] || 0) + 1;
+    });
+    const exportStr = Object.entries(counts).map(([name, count]) => `${count} ${name}`).join('\n');
+    const blob = new Blob([exportStr], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const versionObj = versions.find(v => v.id.toString() === selectedVersion);
+    const vname = versionObj ? versionObj.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 'cube';
+    a.download = `${vname}_list.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCopy = () => {
+    const counts = {};
+    filteredCards.forEach(c => {
+      counts[c.card_name] = (counts[c.card_name] || 0) + 1;
+    });
+    const exportStr = Object.entries(counts).map(([name, count]) => `${count} ${name}`).join('\n');
+    navigator.clipboard.writeText(exportStr);
+    addToast('Cube list copied to clipboard!', 'success');
+  };
+
   const handleOpenSettings = () => {
     const currentVer = versions.find(v => v.id.toString() === selectedVersion);
     setEditingVersionName(currentVer ? currentVer.name : '');
@@ -359,6 +386,15 @@ export default function CubeList() {
             ))}
             {versions.length === 0 && <option value="current">Current Version</option>}
           </select>
+
+          <div className="row gap-2">
+            <button className="btn btn-secondary" onClick={handleExportCopy} disabled={filteredCards.length === 0}>
+              Copy List
+            </button>
+            <button className="btn btn-secondary" onClick={handleExportText} disabled={filteredCards.length === 0}>
+              Export .txt
+            </button>
+          </div>
 
           {isHost && (
             <div className="row gap-2">
