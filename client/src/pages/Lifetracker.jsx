@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-const DELTA_FADE_MS = 900;
-const DELTA_CLEAR_MS = 1400;
+const DELTA_FADE_MS = 3200;
+const DELTA_CLEAR_MS = 3800;
 
 export default function Lifetracker() {
   const [player1Life, setPlayer1Life] = useState(20);
@@ -46,26 +46,29 @@ export default function Lifetracker() {
     const playerTimers = deltaTimers.current[player] || {};
     Object.values(playerTimers).forEach(timerId => clearTimeout(timerId));
 
-    setLifeDelta(prev => ({
-      ...prev,
-      [player]: { value: change, fading: false }
-    }));
+    setLifeDelta(prev => {
+      const currentValue = prev[player]?.value;
+      const nextValue = currentValue == null ? change : currentValue + change;
+
+      return {
+        ...prev,
+        [player]: { value: nextValue, fading: false }
+      };
+    });
 
     deltaTimers.current[player] = {
       fade: setTimeout(() => {
         setLifeDelta(prev => ({
           ...prev,
-          [player]: prev[player].value === change
-            ? { ...prev[player], fading: true }
-            : prev[player]
+          [player]: prev[player].value == null
+            ? prev[player]
+            : { ...prev[player], fading: true }
         }));
       }, DELTA_FADE_MS),
       clear: setTimeout(() => {
         setLifeDelta(prev => ({
           ...prev,
-          [player]: prev[player].value === change
-            ? { value: null, fading: false }
-            : prev[player]
+          [player]: { value: null, fading: false }
         }));
       }, DELTA_CLEAR_MS)
     };
