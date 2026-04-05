@@ -61,7 +61,9 @@ router.post('/tournaments/:id/pairings', requireAuth, requireHost, (req, res) =>
 
         // Get previous matches for re-pairing avoidance
         const previousMatches = db.prepare(`
-            SELECT player1_id, player2_id FROM matches WHERE tournament_id = ?
+            SELECT id, round_number, player1_id, player2_id, player1_wins, player2_wins, draws, status
+            FROM matches
+            WHERE tournament_id = ?
         `).all(req.params.id);
 
         // Get standings for Swiss pairing
