@@ -9,8 +9,7 @@
 
 const { getDb } = require('../db/database');
 
-function calculateStandings(tournamentId) {
-    const db = getDb();
+function calculateStandings(tournamentId, db = getDb()) {
 
     // Get all completed matches for this tournament
     const matches = db.prepare(`
