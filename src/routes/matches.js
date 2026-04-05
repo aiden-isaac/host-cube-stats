@@ -2,6 +2,7 @@ const express = require('express');
 const { getDb } = require('../db/database');
 const { requireAuth, requireHost } = require('../middleware/auth');
 const { generateSwissPairings } = require('../services/swiss');
+const { saveMatchResult } = require('../services/match-results');
 
 const router = express.Router();
 
@@ -38,7 +39,7 @@ router.post('/tournaments/:id/pairings', requireAuth, requireHost, (req, res) =>
         if (!tournament.total_rounds) {
             let totalRounds = Math.ceil(Math.log2(playerCount));
             if (playerCount === 2) totalRounds = 1;
-            else if (playerCount === 3) totalRounds = 2;
+            else if (playerCount === 3) totalRounds = 3;
             
             db.prepare('UPDATE tournaments SET total_rounds = ? WHERE id = ?')
                 .run(totalRounds, req.params.id);
@@ -61,7 +62,9 @@ router.post('/tournaments/:id/pairings', requireAuth, requireHost, (req, res) =>
 
         // Get previous matches for re-pairing avoidance
         const previousMatches = db.prepare(`
-            SELECT player1_id, player2_id FROM matches WHERE tournament_id = ?
+            SELECT id, round_number, player1_id, player2_id, player1_wins, player2_wins, draws, status
+            FROM matches
+            WHERE tournament_id = ?
         `).all(req.params.id);
 
         // Get standings for Swiss pairing
@@ -219,20 +222,64 @@ router.post('/:id/result', requireAuth, (req, res) => {
             return res.status(400).json({ error: 'player1Wins and player2Wins required' });
         }
 
-        db.prepare(`
-            UPDATE matches SET 
-                player1_wins = ?, player2_wins = ?, draws = ?,
-                result_submitted_by = ?, status = 'complete',
-                completed_at = datetime('now')
-            WHERE id = ?
-        `).run(player1Wins, player2Wins, draws, req.user.userId, req.params.id);
+        saveMatchResult(db, {
+            matchId: req.params.id,
+            player1Wins,
+            player2Wins,
+            draws,
+            submittedBy: req.user.userId
+        });
+
 
         req.io.of('/tournament').to(`tournament_${match.tournament_id}`).emit('tournament:refresh');
 
         res.json({ message: 'Result submitted' });
     } catch (error) {
         console.error('Submit result error:', error);
-        res.status(500).json({ error: 'Failed to submit result' });
+        res.status(500).json({ error: error.message || 'Failed to submit result' });
+    }
+});
+
+// PUT /api/matches/:id/result — host correction for completed tournaments
+router.put('/:id/result', requireAuth, requireHost, (req, res) => {
+    try {
+        const { player1Wins, player2Wins, draws = 0 } = req.body;
+        const db = getDb();
+
+        const match = db.prepare(`
+            SELECT m.*, t.status AS tournament_status
+            FROM matches m
+            JOIN tournaments t ON t.id = m.tournament_id
+            WHERE m.id = ?
+        `).get(req.params.id);
+
+        if (!match) {
+            return res.status(404).json({ error: 'Match not found' });
+        }
+
+        if (match.tournament_status !== 'complete') {
+            return res.status(400).json({ error: 'Result correction is only available after the tournament is complete' });
+        }
+
+        if (match.status !== 'complete') {
+            return res.status(400).json({ error: 'Only completed matches can be corrected' });
+        }
+
+        saveMatchResult(db, {
+            matchId: req.params.id,
+            player1Wins,
+            player2Wins,
+            draws,
+            submittedBy: req.user.userId,
+            preserveCompletedAt: true
+        });
+
+        req.io.of('/tournament').to(`tournament_${match.tournament_id}`).emit('tournament:refresh');
+
+        res.json({ message: 'Match result corrected' });
+    } catch (error) {
+        console.error('Correct result error:', error);
+        res.status(500).json({ error: error.message || 'Failed to correct result' });
     }
 });
 
