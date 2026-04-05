@@ -59,7 +59,14 @@ export default function Standings({ tournament, players, matches = [], isHost = 
     }
   };
 
+  const isByeMatch = (match) => match.player2_id == null;
+
   const beginEdit = (match) => {
+    if (isByeMatch(match)) {
+      addToast('BYE matches are fixed at 2-0 and cannot be corrected.', 'error');
+      return;
+    }
+
     setEditingMatchId(match.id);
     setEditValues({
       player1Wins: match.player1_wins,
@@ -204,6 +211,7 @@ export default function Standings({ tournament, players, matches = [], isHost = 
           <div className="col gap-3">
             {completedMatches.map(match => {
               const isEditing = editingMatchId === match.id;
+              const byeMatch = isByeMatch(match);
               return (
                 <div
                   key={match.id}
@@ -218,11 +226,16 @@ export default function Standings({ tournament, players, matches = [], isHost = 
                     <div>
                       <div style={{ fontWeight: 700 }}>Round {match.round_number}</div>
                       <div style={{ color: 'var(--text-secondary)' }}>
-                        {match.player1_display} {match.player1_wins}-{match.player2_wins} {match.player2_display}
+                        {match.player1_display} {match.player1_wins}-{match.player2_wins} {match.player2_display || 'BYE'}
                         {match.draws > 0 ? ` • ${match.draws} draws` : ''}
                       </div>
+                      {byeMatch && (
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.35rem' }}>
+                          BYE results are locked to the automatic 2-0 win.
+                        </div>
+                      )}
                     </div>
-                    {!isEditing && (
+                    {!isEditing && !byeMatch && (
                       <button className="btn" onClick={() => beginEdit(match)}>
                         Correct Result
                       </button>

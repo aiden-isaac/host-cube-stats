@@ -44,6 +44,32 @@ function seedTournament(db) {
     `).run();
 }
 
+function seedByeMatch(db) {
+    db.exec(schema);
+
+    db.prepare(`
+        INSERT INTO users (id, username, display_name, password_hash, role)
+        VALUES
+            (1, 'alice', 'Alice', 'x', 'host'),
+            (2, 'bruno', 'Bruno', 'x', 'player')
+    `).run();
+
+    db.prepare(`
+        INSERT INTO tournaments (id, name, join_code, status, total_rounds, current_round, created_by)
+        VALUES (20, 'BYE Test', 'BYE123', 'complete', 1, 1, 1)
+    `).run();
+
+    db.prepare(`
+        INSERT INTO tournament_players (tournament_id, user_id)
+        VALUES (20, 1), (20, 2)
+    `).run();
+
+    db.prepare(`
+        INSERT INTO matches (id, tournament_id, round_number, player1_id, player2_id, player1_wins, player2_wins, draws, status, result_submitted_by, completed_at)
+        VALUES (103, 20, 1, 1, NULL, 2, 0, 0, 'complete', 1, datetime('now'))
+    `).run();
+}
+
 describe('match result correction helpers', () => {
     it('rejects invalid result payloads', () => {
         expect(() => normalizeMatchResultInput({ player1Wins: -1, player2Wins: 0, draws: 0 }))
@@ -78,6 +104,27 @@ describe('match result correction helpers', () => {
         expect(after[0].displayName).toBe('Cora');
         expect(after[0].matchPoints).toBe(6);
         expect(after.find(player => player.displayName === 'Alice').matchPoints).toBe(3);
+
+        db.close();
+    });
+
+    it('rejects impossible edits for completed BYE matches', () => {
+        const db = new Database(':memory:');
+        seedByeMatch(db);
+
+        expect(() => saveMatchResult(db, {
+            matchId: 103,
+            player1Wins: 1,
+            player2Wins: 1,
+            draws: 0,
+            submittedBy: 1,
+            preserveCompletedAt: true
+        })).toThrow('BYE matches must remain a 2-0 win with 0 draws');
+
+        const byeMatch = db.prepare('SELECT * FROM matches WHERE id = 103').get();
+        expect(byeMatch.player1_wins).toBe(2);
+        expect(byeMatch.player2_wins).toBe(0);
+        expect(byeMatch.draws).toBe(0);
 
         db.close();
     });
