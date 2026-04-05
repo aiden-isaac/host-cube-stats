@@ -107,7 +107,10 @@ export default function TournamentView() {
       {tournament.status === 'complete' && (
         <Standings 
           tournament={tournament} 
-          players={players} 
+          players={players}
+          matches={matches}
+          isHost={isHost}
+          onRefresh={fetchTournamentData}
         />
       )}
     </div>
