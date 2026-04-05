@@ -3,7 +3,86 @@
  * Pairs players with similar records, avoids rematches, handles byes for odd numbers.
  */
 
+function buildPairing(playerA, playerB) {
+    return {
+        player1Id: playerA.user_id,
+        player2Id: playerB.user_id,
+        player1Name: playerA.display_name || playerA.username,
+        player2Name: playerB.display_name || playerB.username
+    };
+}
+
+function generateThreePlayerPairing(players, previousMatches) {
+    const sortedPlayers = [...players].sort((a, b) => a.user_id - b.user_id);
+
+    if (previousMatches.length === 0) {
+        return [buildPairing(sortedPlayers[0], sortedPlayers[1])];
+    }
+
+    const uniquePairings = new Set();
+    for (const match of previousMatches) {
+        if (!match.player1_id || !match.player2_id) continue;
+        uniquePairings.add([match.player1_id, match.player2_id].sort((a, b) => a - b).join('-'));
+    }
+
+    if (uniquePairings.size >= 3) {
+        return [];
+    }
+
+    const playerMap = new Map(sortedPlayers.map(player => [player.user_id, player]));
+
+    if (uniquePairings.size === 1) {
+        const [roundOneMatch] = previousMatches
+            .filter(match => match.player1_id && match.player2_id)
+            .sort((a, b) => a.round_number - b.round_number || a.id - b.id);
+
+        if (!roundOneMatch) {
+            return [];
+        }
+
+        const playedIds = new Set([roundOneMatch.player1_id, roundOneMatch.player2_id]);
+        const waitingPlayer = sortedPlayers.find(player => !playedIds.has(player.user_id));
+
+        if (!waitingPlayer) {
+            return [];
+        }
+
+        let nextOpponentId = null;
+
+        if (roundOneMatch.player1_wins !== roundOneMatch.player2_wins) {
+            nextOpponentId = roundOneMatch.player1_wins < roundOneMatch.player2_wins
+                ? roundOneMatch.player1_id
+                : roundOneMatch.player2_id;
+        } else {
+            nextOpponentId = [roundOneMatch.player1_id, roundOneMatch.player2_id]
+                .sort((a, b) => a - b)[0];
+        }
+
+        const nextOpponent = playerMap.get(nextOpponentId);
+        return nextOpponent ? [buildPairing(waitingPlayer, nextOpponent)] : [];
+    }
+
+    const unplayedPair = [];
+    for (let i = 0; i < sortedPlayers.length; i++) {
+        for (let j = i + 1; j < sortedPlayers.length; j++) {
+            const playerA = sortedPlayers[i];
+            const playerB = sortedPlayers[j];
+            const key = [playerA.user_id, playerB.user_id].join('-');
+            if (!uniquePairings.has(key)) {
+                unplayedPair.push(playerA, playerB);
+                return [buildPairing(playerA, playerB)];
+            }
+        }
+    }
+
+    return unplayedPair.length === 2 ? [buildPairing(unplayedPair[0], unplayedPair[1])] : [];
+}
+
 function generateSwissPairings(players, standings, previousMatches) {
+    if (players.length === 3) {
+        return generateThreePlayerPairing(players, previousMatches);
+    }
+
     // Build a set of previous pairings for O(1) lookup
     const playedBefore = new Set();
     for (const match of previousMatches) {
@@ -94,4 +173,4 @@ function generateSwissPairings(players, standings, previousMatches) {
     return pairings;
 }
 
-module.exports = { generateSwissPairings };
+module.exports = { generateSwissPairings, generateThreePlayerPairing };

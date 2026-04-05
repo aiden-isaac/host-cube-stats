@@ -38,7 +38,7 @@ router.post('/tournaments/:id/pairings', requireAuth, requireHost, (req, res) =>
         if (!tournament.total_rounds) {
             let totalRounds = Math.ceil(Math.log2(playerCount));
             if (playerCount === 2) totalRounds = 1;
-            else if (playerCount === 3) totalRounds = 2;
+            else if (playerCount === 3) totalRounds = 3;
             
             db.prepare('UPDATE tournaments SET total_rounds = ? WHERE id = ?')
                 .run(totalRounds, req.params.id);
@@ -61,7 +61,9 @@ router.post('/tournaments/:id/pairings', requireAuth, requireHost, (req, res) =>
 
         // Get previous matches for re-pairing avoidance
         const previousMatches = db.prepare(`
-            SELECT player1_id, player2_id FROM matches WHERE tournament_id = ?
+            SELECT id, round_number, player1_id, player2_id, player1_wins, player2_wins, draws, status
+            FROM matches
+            WHERE tournament_id = ?
         `).all(req.params.id);
 
         // Get standings for Swiss pairing
