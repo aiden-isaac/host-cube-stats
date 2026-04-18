@@ -90,6 +90,9 @@ export default function AppShell() {
           <NavLink to="/cube" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             <ImageIcon size={18} /> <span style={{ marginLeft: 8 }}>Cube List</span>
           </NavLink>
+          <NavLink to="/custom-cards" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <ImageIcon size={18} /> <span style={{ marginLeft: 8 }}>Custom Cards</span>
+          </NavLink>
           <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             <Settings size={18} /> <span style={{ marginLeft: 8 }}>Settings</span>
           </NavLink>

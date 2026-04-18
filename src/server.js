@@ -51,6 +51,7 @@ app.use('/api/cube', require('./routes/cube'));
 app.use('/api/tournaments', require('./routes/tournaments'));
 app.use('/api/decklists', require('./routes/decklists'));
 app.use('/api/matches', require('./routes/matches'));
+app.use('/api/custom-cards', require('./routes/custom-cards'));
 
 // Fallback for SPA
 app.get('*', (req, res) => {
