@@ -13,7 +13,48 @@ export default function Lifetracker() {
 
   const deltaTimers = useRef({ 1: {}, 2: {} });
   const [activeMatch, setActiveMatch] = useState(null);
+  const [wakeLockActive, setWakeLockActive] = useState(false);
+  const wakeLockRef = useRef(null);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  // Screen Wake Lock API — keep the display on during life tracking
+  useEffect(() => {
+    let released = false;
+
+    const acquireWakeLock = async () => {
+      if (!('wakeLock' in navigator)) return;
+      try {
+        const lock = await navigator.wakeLock.request('screen');
+        if (!released) {
+          wakeLockRef.current = lock;
+          setWakeLockActive(true);
+        }
+      } catch (err) {
+        // Wake lock not supported or permission denied — fail silently
+        console.debug('Wake Lock API unavailable:', err?.message);
+      }
+    };
+
+    acquireWakeLock();
+
+    // Reacquire when tab becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        acquireWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      released = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const fetchActiveMatch = async () => {
@@ -226,6 +267,22 @@ export default function Lifetracker() {
 
       <PlayerSection life={player2Life} playerNum={2} isUpsideDown={true} />
       <PlayerSection life={player1Life} playerNum={1} isUpsideDown={false} />
+
+      {/* Wake lock status indicator — only shown when lock is active */}
+      {wakeLockActive && (
+        <div style={{
+          position: 'absolute',
+          bottom: '0.5rem',
+          right: '0.5rem',
+          fontSize: '0.65rem',
+          color: 'rgba(255,255,255,0.25)',
+          zIndex: 100,
+          pointerEvents: 'none',
+          userSelect: 'none'
+        }}>
+          display on
+        </div>
+      )}
     </div>
   );
 }
