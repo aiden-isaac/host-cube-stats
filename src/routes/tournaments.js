@@ -14,6 +14,13 @@ function generateJoinCode() {
     return code;
 }
 
+// Calculate the correct total rounds for a given player count
+function calculateTotalRounds(playerCount) {
+    if (playerCount === 2) return 1;
+    if (playerCount === 3) return 3; // 3-player draft: 3 rounds (all unique pairings)
+    return Math.ceil(Math.log2(playerCount));
+}
+
 // POST /api/tournaments — create tournament (host-only)
 router.post('/', requireAuth, requireHost, (req, res) => {
     try {
@@ -45,9 +52,9 @@ router.post('/', requireAuth, requireHost, (req, res) => {
             joinCode = generateJoinCode();
         } while (db.prepare('SELECT id FROM tournaments WHERE join_code = ?').get(joinCode));
 
-        let calculatedRounds = Math.ceil(Math.log2(maxPlayers));
-        if (maxPlayers === 2) calculatedRounds = 1;
-        else if (maxPlayers === 3) calculatedRounds = 2;
+        // Use provided totalRounds, or calculate the correct default
+        const calculatedRounds = calculateTotalRounds(maxPlayers);
+        const finalRounds = totalRounds || calculatedRounds;
 
         const result = db.prepare(`
             INSERT INTO tournaments (name, join_code, format, max_players, 
@@ -58,7 +65,7 @@ router.post('/', requireAuth, requireHost, (req, res) => {
             name, joinCode, format, maxPlayers,
             draftTimerEnabled ? 1 : 0, draftTimerSeconds,
             matchTimerEnabled ? 1 : 0, matchTimerMinutes,
-            totalRounds || calculatedRounds,
+            finalRounds,
             currentVersion ? currentVersion.id : null,
             req.user.userId
         );
@@ -286,6 +293,60 @@ router.put('/:id/status', requireAuth, requireHost, (req, res) => {
     } catch (error) {
         console.error('Status update error:', error);
         res.status(500).json({ error: 'Failed to update tournament status' });
+    }
+});
+
+// POST /api/tournaments/:id/repair-round — reopen a completed tournament for one extra round (host-only)
+// Used to fix 3-player tournaments that prematurely terminated after 2 rounds.
+router.post('/:id/repair-round', requireAuth, requireHost, (req, res) => {
+    try {
+        const db = getDb();
+        const tournament = db.prepare('SELECT * FROM tournaments WHERE id = ?').get(req.params.id);
+
+        if (!tournament) {
+            return res.status(404).json({ error: 'Tournament not found' });
+        }
+
+        // Guard: only completed tournaments can be repaired
+        if (tournament.status !== 'complete') {
+            return res.status(400).json({
+                error: 'Only completed tournaments can be repaired. Current status: ' + tournament.status
+            });
+        }
+
+        // Guard: must have at least one completed match
+        const matchCount = db.prepare(
+            'SELECT COUNT(*) as count FROM matches WHERE tournament_id = ? AND status = ?'
+        ).get(req.params.id, 'complete').count;
+
+        if (matchCount === 0) {
+            return res.status(400).json({ error: 'Cannot repair a tournament with no completed matches' });
+        }
+
+        // Increment total_rounds by 1, reset status to playing, clear completed_at
+        const newTotalRounds = (tournament.total_rounds || 0) + 1;
+
+        db.prepare(`
+            UPDATE tournaments 
+            SET status = 'playing', 
+                total_rounds = ?, 
+                completed_at = NULL 
+            WHERE id = ?
+        `).run(newTotalRounds, req.params.id);
+
+        req.io.of('/tournament').to(`tournament_${req.params.id}`).emit('tournament:refresh');
+
+        res.json({
+            message: `Tournament reopened for Round ${newTotalRounds}`,
+            tournament: {
+                id: tournament.id,
+                status: 'playing',
+                total_rounds: newTotalRounds
+            }
+        });
+    } catch (error) {
+        console.error('Repair round error:', error);
+        res.status(500).json({ error: 'Failed to repair tournament' });
     }
 });
 

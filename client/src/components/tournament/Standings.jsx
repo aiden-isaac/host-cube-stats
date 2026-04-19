@@ -10,6 +10,7 @@ export default function Standings({ tournament, players, matches = [], isHost = 
   const [editingMatchId, setEditingMatchId] = useState(null);
   const [editValues, setEditValues] = useState({ player1Wins: '', player2Wins: '', draws: 0 });
   const [savingEdit, setSavingEdit] = useState(false);
+  const [repairing, setRepairing] = useState(false);
   const printRef = useRef(null);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const token = localStorage.getItem('token');
@@ -56,6 +57,27 @@ export default function Standings({ tournament, players, matches = [], isHost = 
       console.error(err);
       addToast(err.message || 'Failed to generate image', 'error');
       setExporting(false);
+    }
+  };
+
+  const handleRepairRound = async () => {
+    setRepairing(true);
+    try {
+      const res = await fetch(`/api/tournaments/${tournament.id}/repair-round`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to repair tournament');
+      addToast(`Tournament reopened for Round ${data.tournament.total_rounds}!`, 'success');
+      if (onRefresh) await onRefresh();
+    } catch (err) {
+      addToast(err.message, 'error');
+    } finally {
+      setRepairing(false);
     }
   };
 
@@ -288,6 +310,27 @@ export default function Standings({ tournament, players, matches = [], isHost = 
                 </div>
               );
             })}
+          </div>
+
+          {/* Repair section */}
+          <div className="col gap-2 mt-6" style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1.5rem' }}>
+            <h4 style={{ margin: 0, color: 'var(--warning)' }}>⚠️ Repair: Add Extra Round</h4>
+            <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+              Reopens this completed tournament for one additional round. Intended to fix 3-player tournaments that prematurely terminated.
+            </p>
+            <button
+              className="btn"
+              onClick={handleRepairRound}
+              disabled={repairing}
+              style={{
+                background: 'rgba(251, 191, 36, 0.15)',
+                color: 'var(--warning)',
+                border: '1px solid rgba(251, 191, 36, 0.3)',
+                alignSelf: 'flex-start'
+              }}
+            >
+              {repairing ? 'Reopening...' : 'Repair: Add Round'}
+            </button>
           </div>
         </div>
       )}
