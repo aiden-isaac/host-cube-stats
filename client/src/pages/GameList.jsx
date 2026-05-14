@@ -63,6 +63,29 @@ export default function GameList() {
     }
   };
 
+  const handleQuickJoin = async (e, joinCode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setJoining(true);
+    try {
+      const res = await fetch('/api/tournaments/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ joinCode })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to join');
+      
+      addToast('Successfully joined!', 'success');
+      navigate(`/games/${data.tournamentId}`);
+    } catch (err) {
+      addToast(err.message, 'error');
+    } finally {
+      setJoining(false);
+    }
+  };
+
   const handleJoin = async (e) => {
     e.preventDefault();
     if (joinCode.length !== 6) return addToast('Code must be 6 characters', 'warning');
@@ -189,6 +212,19 @@ export default function GameList() {
                 Host: <span style={{ color: 'var(--primary)' }}>{t.host_name}</span><br/>
                 Players: {t.player_count} / {t.max_players}
               </p>
+              {/* Quick-join button for non-host users on lobby tournaments */}
+              {!isHost && t.status === 'lobby' && (
+                <div className="mt-3">
+                  <button
+                    className="btn btn-primary"
+                    style={{ width: '100%' }}
+                    onClick={(e) => handleQuickJoin(e, t.join_code)}
+                    disabled={joining}
+                  >
+                    {joining ? 'Joining...' : `Join (${t.join_code})`}
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

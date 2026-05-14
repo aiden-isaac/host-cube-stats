@@ -54,6 +54,13 @@ CREATE TABLE IF NOT EXISTS image_overrides (
     PRIMARY KEY (card_name)
 );
 
+CREATE TABLE IF NOT EXISTS custom_cards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    card_name TEXT UNIQUE NOT NULL,
+    image_url TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Tournaments
 CREATE TABLE IF NOT EXISTS tournaments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

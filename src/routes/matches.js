@@ -31,16 +31,18 @@ router.post('/tournaments/:id/pairings', requireAuth, requireHost, (req, res) =>
             return res.status(400).json({ error: 'Current round has unfinished matches' });
         }
 
-        // Calculate total rounds if not set (log2 of player count, rounded up)
+        // Normalize total_rounds based on actual player count.
+        // Fixes stale tournaments that were created with an incorrect total_rounds
+        // (e.g. a 3-player tournament stuck at total_rounds=2).
         const playerCount = db.prepare(
             'SELECT COUNT(*) as count FROM tournament_players WHERE tournament_id = ?'
         ).get(req.params.id).count;
 
-        if (!tournament.total_rounds) {
-            let totalRounds = Math.ceil(Math.log2(playerCount));
-            if (playerCount === 2) totalRounds = 1;
-            else if (playerCount === 3) totalRounds = 3;
-            
+        let totalRounds = Math.ceil(Math.log2(playerCount));
+        if (playerCount === 2) totalRounds = 1;
+        else if (playerCount === 3) totalRounds = 3;
+
+        if (totalRounds > (tournament.total_rounds || 0)) {
             db.prepare('UPDATE tournaments SET total_rounds = ? WHERE id = ?')
                 .run(totalRounds, req.params.id);
             tournament.total_rounds = totalRounds;

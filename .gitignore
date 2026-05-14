@@ -1,16 +1,27 @@
 # Dependencies
 node_modules/
 
-# Database
+# Database & SQLite
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
 data/*.db
+data/*.db-*
 
 # Environment
 .env
 .env.local
+!.env.example
 
 # Logs
 *.log
 npm-debug.log*
+*.pid
+
+# Training data / ML model outputs
+*.traineddta
+*.model
+*.bin
 
 # OS files
 .DS_Store
@@ -21,7 +32,12 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+*.swn
 
-# Backup files
+# Backups
 *.backup
 *_backup_*.json
+*.bak
+
+# Client dist builds
+client/dist/
